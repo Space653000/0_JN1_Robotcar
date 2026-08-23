@@ -1,346 +1,529 @@
-# JN1 四專案整併藍圖 v1.0
+# JN1 四專案整併藍圖
 
-**編製日期**：2026-08-23  
-**文檔狀態**：最終報告  
-**盤點範圍**：唯讀探索四個舊專案（JN1_AI、JN1_OPENCLAW、JN1_ROLE、JN1_ROS2）
-
----
-
-## 壹、四專案總覽表
-
-| 專案 | 用途與定位 | 運行狀態 | 核心資產 | 技術債 | 可複用度 |
-|------|-----------|---------|---------|--------|---------|
-| **JN1_AI** | 邊緣 AI 平台憲法、決策核心、Voice/Vision 整合 | ⚠️ 部分可用（BRAIN/SENSES 架構成熟，VLM 有問題） | llama3-8b、phi3-mini LLM；whisper/TTS 模型；完整的 BRAIN/SENSES/SKILLS/SYSTEM 架構；YOLO/ArcFace 視覺框架 | 架構過度設計（7層 checklist）；多版本 main.py；大量調試腳本；LOGS 混亂 | 🟢 極高（架構/模型/設計模式都有參考價值） |
-| **JN1_OPENCLAW** | Agent framework + 多技能橋接系統 | ⚠️ 框架已建立，實例化程度低 | agent_framework/mission_control；skills_bridge（19個技能目錄）；工作流編排框架 | skills_bridge 目錄多、實現稀疏；測試代碼零散；venv 環境混亂 | 🟡 中等（agent 框架參考可用，skills 多數半成品） |
-| **JN1_ROLE** | 角色引擎 / JARVIS 應用實例 | ❌ 停滯（基礎代碼陳舊，2026年1月後未更新） | jarvis_core.py（角色系統）；memory_fabric、perception_stub；基礎的 Voice Chat | 代碼版本控制混亂（backup/old）；hardcoded path；ASR/TTS 模型過期；無有效運行配置 | 🔴 低（參考意義最小，大部分應丟棄） |
-| **JN1_ROS2** | 移動機器人（AMR）ROS 2 橋接 | ⚠️ 框架在，橋接未完成 | 基於 orin_amr_docker；jn1_ros_bridge.py（ZMQ 神經橋接）；ROS 2 整合模板 | ROS2 源代碼巨大（.git 裡完整源樹）；橋接代碼簡陋；無實際測試 | 🟡 低-中（ROS 橋接概念有用，但 0_JN1_Robotcar 現階段無須） |
+**建檔日期**：2026-08-23  
+**更新時間**：實時盤點  
+**範圍**：JN1_AI、JN1_OPENCLAW、JN1_ROLE、JN1_ROS2 → 0_JN1_Robotcar  
 
 ---
 
-## 貳、四專案詳細架構樹狀圖
+## 一、四專案總覽表
 
-### 2.1 JN1_AI 核心層級結構
+| 專案 | 用途定位 | 核心資產 | 運行狀態 | 技術債 | 建議狀態 |
+|---|---|---|---|---|---|
+| **JN1_AI** | 完整 AI 大腦系統；語音/視覺/思考核心 | BRAIN(COGNITION/MEMORY/GOVERNANCE)、SENSES(耳朵/眼睛)、ACTUATORS(嘴巴)、ZMQ 通訊、TensorRT YOLO、Whisper GPU、內存管理、事件總線 | ✅ 可運行，docker-compose 配置完善；Whisper/TTS/YOLO 實測有效 | 多版本 main（v7~v11 並存）、實驗代碼雜亂、寫死的 ALSA 配置、未整理的 LABS 目錄 | 作為**大腦核心**直接遷移；清理版本分支 |
+| **JN1_OPENCLAW** | 智慧體框架；多技能路由與 agent 執行 | Agent 框架(`run_agent.py`)、技能橋接、Ollama 集成、WebTool/OfficeTools/MediaTools、使命控制隊列 | ❌ 架構不清晰；包含大量複製自 JN1_AI 的重複代碼；venv 環境未確認 | 嚴重代碼重複、skills_bridge 臃腫、無清晰的模組邊界、文檔缺失 | 參考智慧體框架設計；**核心概念**納入新 Brain；重複代碼刪除 |
+| **JN1_ROLE** | 角色引擎與對話個性化；視覺描述 | 角色配置（Jarvis/Past-Self/Exhibition-Agent）、YOLO + 中文標籤映射、記憶纖維（memory_fabric）、多角色狀態管理、音頻庫、TTS 集成 | ⚠️ 部分可運行；Jarvis_core 實現完整但版本多（v2.8~v3.5）；視覺模組未完全集成 | 多版本並存、vision.py 半成品、角色配置與代碼分離不清、舊數據堆積 | 提取**角色管理**與**視覺檢測**邏輯；YOLO 標籤映射可直接複用 |
+| **JN1_ROS2** | ROS 2 機器人底盤與移動控制橋接 | jn1_ros_bridge.py（ROS 通訊骨架）、Docker 支持 | ❌ 最小化；未完成；test_brain_move.py 是半成品 | 骨架不全、缺少實際移動指令實現、無测试覆蓋 | 文件保存以備未來；暫不優先整併 |
+
+---
+
+## 二、四專案資料夾架構樹狀圖
+
+### 2.1 JN1_AI 架構
 
 ```
 JN1_AI/
-├── SENSES/                    # 感知層（事實採集，無業務邏輯）
-│   ├── ears_process.py        # ASR 處理（whisper/faster-whisper）
-│   ├── ears_whisper.py        # Whisper 實現
-│   ├── ears_wake.py           # 喚醒詞檢測
-│   └── eyes_tensorrt.py       # 視覺 (TensorRT YOLO)
-├── BRAIN/                     # 決策層（唯一大腦）
-│   ├── COGNITION/             # 推理引擎
+├── BRAIN/                         # 智能核心引擎
+│   ├── COGNITION/                 # 認知層：任務分解、工具路由、推理控制
+│   │   ├── auto_scholar.py
 │   │   ├── concept_engine.py
 │   │   ├── reasoning_controller.py
-│   │   ├── knowledge_graph.py
+│   │   ├── task_decomposer.py
 │   │   └── tool_router.py
-│   ├── MEMORY/                # 記憶系統
-│   │   ├── long_term_memory.py
-│   │   ├── short_term_memory.py
-│   │   └── vector_memory.py
-│   ├── GOVERNANCE/            # 決策治理
+│   ├── DATABANK/                  # 數據倉庫：狀態管理、記憶糾正
+│   │   ├── CORRECTIONS/
+│   │   ├── INTERNAL_DB/
+│   │   ├── LIBRARY/
+│   │   ├── LOGS/
+│   │   └── correction_manager.py
+│   ├── GOVERNANCE/                # 治理層：行為守衛、政策審計
 │   │   ├── behavior_guard.py
+│   │   ├── governance_kernel.py
 │   │   ├── policy_auditor.py
+│   │   ├── policy_dsl.py
 │   │   └── policy_matrix.json
-│   └── LLM_gateway.py         # 大模型路由
-├── ACTUATORS/                 # 執行層（動作輸出）
-│   ├── mouth_process.py       # TTS 合成
-│   └── stock_controller.py
-├── SKILLS/                    # 技能系統
-│   ├── tool_process.py
-│   └── knowledge_worker.py
-├── SYSTEM/                    # 系統監控
-│   ├── health_monitor.py
-│   ├── gpu_scheduler.py
-│   └── supervisor.py
-├── MODELS/                    # 模型倉庫
-│   ├── BRAIN_ZOO/
-│   │   ├── llama3-8b-instruct.gguf   (4.9GB)
-│   │   └── phi3-mini-4k.gguf         (2.4GB)
-│   ├── VISION_ZOO/
-│   └── VOICE_ZOO/
-├── LABS/                      # 實驗區
-│   ├── VOICE_LAB/             # ASR 實驗（Riva/Whisper）
-│   ├── VISION_LAB/            # 視覺實驗（YOLO_World、ArcFace）
-│   └── STOCK_LAB/             # 股票應用原型
-├── docker-compose.yaml        # 完整容器編排
-└── JN1_Development_Doctrine.md# 系統憲法（七大不可妥協條件）
+│   ├── MEMORY/                    # 內存系統：短期/長期/向量記憶
+│   │   ├── long_term_memory.py
+│   │   ├── memory_index.py
+│   │   ├── short_term_memory.py
+│   │   ├── vector_memory.py
+│   │   └── library_builder.py
+│   ├── MODEL_ROUTER/              # 模型路由：SLA、推理選擇
+│   │   ├── router_core.py
+│   │   ├── routing_policy.py
+│   │   └── sla_router.py
+│   ├── LLM_gateway.py
+│   ├── EVENT_bus.py
+│   ├── MEMORY_system.py
+│   ├── POLICY_engine.py
+│   ├── persona.py
+│   └── reflex.py
+├── SENSES/                        # 感知層
+│   ├── ears_process.py            # 麥克風進程管理
+│   ├── ears_wake.py               # 喚醒詞檢測
+│   ├── ears_whisper.py            # Whisper GPU ASR
+│   └── eyes_tensorrt.py           # TensorRT YOLO 視覺檢測
+├── ACTUATORS/                     # 動作層
+│   ├── mouth.py                   # TTS 發音
+│   ├── mouth_process.py
+│   └── stock_controller.py        # 庫存控制（示例）
+├── COMM/                          # 通訊層
+│   ├── zmq_bus.py                 # ZMQ 發佈/訂閱
+│   └── zmq_subscriber.py
+├── SYSTEM/                        # 系統監控
+│   ├── supervisor.py
+│   ├── metrics_collector.py
+│   ├── audit_logger.py
+│   ├── system_state_registry.py
+│   └── power_manager.py
+├── CORE/                          # 核心進程
+│   └── brain_process.py
+├── LABS/                          # 實驗室（測試代碼）
+│   ├── VOICE_LAB/
+│   └── STOCK_LAB/
+├── models/                        # 本地模型快取
+│   ├── whisper-base/              # ~142MB
+│   ├── whisper-base-gpu/          # ~142MB
+│   ├── paraphrase-multilingual-MiniLM-L12-v2/  # ~466MB (語義搜尋)
+│   └── tts/                       # 語音合成模型
+├── main.py                        # 主入口（最新版本）
+├── main_v7~v11.py                 # 舊版本（應清理）
+├── docker-compose.yaml
+├── Dockerfile
+└── code.env                       # ⚠️ 機密檔案（唯讀）
 ```
 
-### 2.2 JN1_OPENCLAW 結構
+### 2.2 JN1_OPENCLAW 架構
 
 ```
 JN1_OPENCLAW/
-├── agent_framework/           # 代理框架核心
-│   ├── mission_control/       # 任務調度
-│   ├── run_agent.py
-│   └── skills_bridge/         # 19個技能模組
-│       ├── code_backups/
-│       ├── communication/
-│       ├── creative/
-│       ├── data_processing/
-│       ├── research/
-│       └── [14 more...]
-├── core/                      # 核心工具
-├── tools/                     # 工具集
-├── sandbox/                   # 沙箱環境
-│   ├── inbox/
-│   ├── workspace/
-│   └── outbox/
-├── lib/ollama/                # 本地 Ollama 集成
-├── models/                    # 模型存儲
-└── security/                  # 安全模組
+├── agent_framework/               # 智慧體框架
+│   ├── core/
+│   │   ├── agent.py               # Agent 核心邏輯
+│   │   ├── agent_test.py
+│   │   └── prompts.py
+│   ├── tools/
+│   │   ├── search_tools.py
+│   │   ├── web_tools.py
+│   │   ├── office_tools.py
+│   │   ├── media_tools.py
+│   │   ├── finance_tools.py
+│   │   └── code_tools.py
+│   ├── mission_control/           # 任務佇列
+│   │   ├── incoming/              # 待執行任務
+│   │   └── outbox/                # 完成結果
+│   ├── skills_bridge/             # ⚠️ 包含大量 JN1_AI 複製代碼（應刪除）
+│   │   └── [太多重複的 BRAIN、SENSES、SYSTEM 代碼]
+│   └── venv/
+├── core/
+│   ├── agent.py
+│   ├── agent_test.py
+│   └── __init__.py
+├── bin/
+│   └── ollama                     # ollama 執行檔
+├── run_agent.py                   # 智慧體啟動器
+├── Backstage_openclaw.sh
+└── backstage.log
 ```
 
-### 2.3 JN1_ROLE 結構
+### 2.3 JN1_ROLE 架構
 
 ```
 JN1_ROLE/
-├── app/                       # 應用主體
-│   ├── jarvis_core.py         # 角色引擎（JARVIS）
-│   ├── brain_test.py
-│   ├── chat.py
-│   ├── jn1_audio_lib.py       # 音訊操作（陳舊）
-│   ├── jn1_audio_test.py
-│   └── memory_fabric.py       # 簡單記憶
-├── brain/                     # 空（未實現）
-├── perception/                # 空（未實現）
-├── memory/                    # 向量記憶（空）
-├── docker-compose.yml         # Docker 配置
-└── logs/                      # 運行日誌
+├── app/                           # 主應用層
+│   ├── jarvis_core.py             # Jarvis 角色核心（v2.6~v3.5）
+│   ├── role_engine.py             # 角色引擎
+│   ├── memory_fabric.py           # 記憶管理
+│   ├── action_layer.py            # 行動層
+│   ├── jn1_audio_lib.py           # 音頻庫（自製）
+│   ├── jn1_config.py              # 配置管理
+│   ├── utils.py
+│   └── chat.py
+├── brain/                         # 大腦模組
+│   ├── jn1_brain_v28.py           # 多任務大腦 v2.8
+│   ├── jn1_multitask_brain.py     # 多任務大腦
+│   └── jn1_eye_engine.py          # 眼睛引擎（視覺）
+├── perception/                    # 感知層
+│   └── video/
+│       ├── jn1_vision.py          # YOLO + 中文標籤
+│       ├── jn1_vision_daemon.py   # 視覺守護進程
+│       └── tts/                   # TTS 執行檔
+├── roles.yaml                     # 角色配置檔
+├── docker-compose.yml
+├── Dockerfile.jn1
+├── asound.conf
+├── BACKUP/                        # 備份（舊代碼）
+├── OLD_DATA/                      # 歷史數據
+├── logs/
+│   ├── system.log
+│   └── vision.log
+├── memory/
+│   └── vectors/
+├── runs/                          # YOLO 推論結果
+└── RUN_JARVIS_V3.5.sh
 ```
 
-### 2.4 JN1_ROS2 結構
+### 2.4 JN1_ROS2 架構
 
 ```
 JN1_ROS2/
-├── orin_amr_docker/           # AMR 容器基礎
-│   ├── .git/                  # 完整 ROS 源樹（巨大）
-│   ├── orin_amr_docker/
-│   └── [ROS 2 源代碼]
-├── src/                       # 空（預留給自定義包）
-├── jn1_ros_bridge.py          # 神經橋接程式（ZMQ）
-├── Dockerfile.jn1             # JN1 定製化鏡像
-└── 00000_auto_test.sh         # 自動測試腳本
+├── src/                           # ROS 2 源代碼（空）
+├── jn1_ros_bridge.py              # ROS 橋接骨架
+├── test_brain_move.py             # 測試（半成品）
+├── orin_amr_docker/               # Docker 支持（複製自外部）
+│   ├── run_docker.sh
+│   └── README.md
+└── Dockerfile.jn1
 ```
 
 ---
 
-## 叁、去蕪存菁清單（分類回收）
+## 三、去蕪存菁清單
 
-### 3.1 直接複用（🟢 馬上用）
+### 3.1 **直接複用** ✅
 
-| 資產 | 來源 | 複用方式 | 目標位置 | 備註 |
-|------|------|--------|---------|------|
-| **LLM 模型** | JN1_AI/MODELS/BRAIN_ZOO/ | 複製 GGUF 到新 ollama 存儲 | `data/ollama-models/` | llama3-8b（對話基礎）、phi3-mini（輕量備選） |
-| **Whisper 模型** | JN1_AI/models/whisper-* | 複製到 ASR 容器 | `data/asr-models/` | 已在 0_JN1_Robotcar 使用，驗證正常 |
-| **TTS 模型** | JN1_AI/models/tts/ | 複製 Piper/ONNX 模型 | `data/tts-models/` | 中文 TTS（zh_CN-huayan-medium）已集成 |
-| **BRAIN 架構概念** | JN1_AI/BRAIN/ | 參考設計（不複製代碼） | `docs/architecture/` | COGNITION/MEMORY/GOVERNANCE 三層架構值得借鑒 |
-| **SENSES 感知設計** | JN1_AI/SENSES/ | 參考實現邏輯 | Brain 的 vision/asr 模塊 | 已部分整合到 0_JN1_Robotcar（ASR/TTS） |
-| **Docker 編排** | JN1_AI/docker-compose.yaml | 參考 GPU/音訊配置 | 0_JN1_Robotcar/docker-compose.yml | NVIDIA 運行時、PulseAudio mount 已採用 |
+| 資產 | 來源 | 目標位置 | 說明 |
+|---|---|---|---|
+| BRAIN.COGNITION | JN1_AI | `src/brain/cognition/` | 任務分解、推理、工具路由；保持原設計 |
+| BRAIN.MEMORY | JN1_AI | `src/brain/memory/` | 短期/長期/向量記憶；核心資產 |
+| BRAIN.GOVERNANCE | JN1_AI | `src/brain/governance/` | 行為守衛、政策審計；安全關鍵 |
+| SENSES.ears_whisper | JN1_AI | `src/asr/` | GPU Whisper 實現；已驗證有效 |
+| SENSES.eyes_tensorrt | JN1_AI | `src/vision/detection/` | TensorRT YOLO；高效檢測 |
+| ACTUATORS.mouth | JN1_AI | `src/tts/` | TTS 基礎（補完 Kokoro 實現） |
+| COMM.zmq_bus | JN1_AI | `src/infra/messaging/` | 進程間通訊；保持原設計 |
+| YOLO 中文標籤映射 | JN1_ROLE | `src/vision/labels/zh_CN.json` | LABEL_MAP（人、椅子、貓...） |
+| 角色配置架構 | JN1_ROLE | `config/roles/` | roles.yaml 格式；多角色支持 |
 
-### 3.2 參考重寫（🟡 概念拿，代碼改）
+### 3.2 **參考重寫** 🔄
 
-| 資產 | 來源 | 複用方式 | 目標位置 | 備註 |
-|------|------|--------|---------|------|
-| **Agent Framework** | JN1_OPENCLAW/agent_framework/ | 參考架構，重寫實現 | `src/agent/` | 任務編排、skills_bridge 的概念可用，但實現太複雜 |
-| **Memory System** | JN1_AI/BRAIN/MEMORY/ | 參考三層（short/long/vector） | Brain 的記憶模塊 | 目前 0_JN1_Robotcar 用簡單 deque，可升級參考設計 |
-| **Policy Engine** | JN1_AI/BRAIN/GOVERNANCE/ | 參考決策治理框架 | 行為約束層 | 當前無此層，未來可加 |
-| **Voice Lab** | JN1_AI/LABS/VOICE_LAB/ | 參考 ASR 基準測試代碼 | `docs/benchmarks/` | Riva 對比測試已做過，可參考 |
+| 資產 | 來源 | 目標 | 原因 |
+|---|---|---|---|
+| Agent 框架 | JN1_OPENCLAW | 新 `src/brain/agent/` | 去除 skills_bridge 重複代碼；統一使用 0_JN1_Robotcar 的微服務模式 |
+| 視覺描述流程 | JN1_ROLE + JN1_AI | 新 `src/vision/vlm_pipeline.py` | 合併 YOLO 檢測 + VLM 描述 + OpenCC 中文轉換 |
+| 大腦主迴圈 | JN1_ROLE（jarvis_core） | 擴充 `src/brain/server.py` | 移入對話狀態管理、記憶存取；去掉 edge-tts 改用 Kokoro |
+| ROS 橋接 | JN1_ROS2 | `src/infra/ros_bridge/` (未來) | 完成 test_brain_move.py；集成底盤控制 |
 
-### 3.3 捨棄（🔴 整個刪掉或保留唯讀）
+### 3.3 **捨棄** ❌
 
-| 資產 | 來源 | 理由 | 狀態 |
-|------|------|------|------|
-| **JN1_ROLE 全部代碼** | JN1_ROLE/ | 2026/1 後停滯，架構陳舊，JARVIS 核心簡陋 | 唯讀保留（歷史參考） |
-| **LABS/VISION_LAB** | JN1_AI/LABS/VISION_LAB/ | YOLO_World/ArcFace 框架，但無可用推論代碼 | 唯讀保留（模型可能存檔） |
-| **JN1_ROS2 源代碼** | JN1_ROS2/orin_amr_docker/.git/ | 巨大的 ROS 2 完整源樹，0_JN1_Robotcar 不需動機制 | 唯讀保留（備用參考） |
-| **多版本主程式** | JN1_AI/main_v*.py、ROLE/backup/ | 版本控制混亂，應統一到 git | 唯讀保留 |
-| **調試日誌** | JN1_AI/LOGS/、各專案 /logs/ | 大量陳舊 log（MB 級），無生產價值 | 保留在原位（不同步） |
-
----
-
-## 肆、中文視覺問題的具體解法建議
-
-### 4.1 現況分析
-
-**問題**：0_JN1_Robotcar 的 Vision AI 卡在「中文 VLM」和「繁體輸出」
-
-**舊專案掃描結果**：
-- ❌ JN1_AI：有 llava-7b / moondream，但都是英文輸出 + Jetson 16GB VRAM 不足（OOM）
-- ❌ JN1_OPENCLAW：無視覺模型（agent 框架為主）
-- ❌ JN1_ROLE：無 VLM（只有文本 JARVIS）
-- ❌ JN1_ROS2：無視覺（ROS 橋接為主）
-
-**結論**：四個舊專案都 **沒有可用的中文 VLM 資產**
-
-### 4.2 推薦方案（M3-1c 已採用）
-
-由於舊專案無中文 VLM，當前 0_JN1_Robotcar 的最實用方案是：
-
-```
-┌─────────────────────────────────────┐
-│  Camera Frame → Brain (LLM)         │
-│                                     │
-│  不依賴 VLM，改用 qwen2.5:3b LLM    │
-│  直接生成繁體中文場景描述            │
-│  （已驗證 M3-1c：三次對照測試通過）  │
-└─────────────────────────────────────┘
-```
-
-**具體實現**：
-1. ✅ Vision 服務降級為「純幀擷取」（無推論）
-2. ✅ Brain 改用 LLM 假設場景 + opencc 繁體轉換（M3-1c 完成）
-3. ✅ 性能：平均推論 5.5秒、記憶體 4.6GB（可控）
-
-**未來升級路徑**（若要真 VLM）：
-- 尋找中文 VLM（qwen-vl、internvl 等），需要更新的 ollama 支持
-- 或將 Jetson 升級到更多 VRAM（32GB+）
-- 或使用線上 API（但違反「offline-first」原則）
+| 資產 | 來源 | 理由 |
+|---|---|---|
+| main_v7 ~ v10.py | JN1_AI | 舊版本；已由 main.py 取代 |
+| JN1_OPENCLAW/skills_bridge/ | JN1_OPENCLAW | 100% 複製自 JN1_AI；應刪除 |
+| JN1_OPENCLAW/venv/ | JN1_OPENCLAW | Python 虛擬環境；已改用 Docker |
+| JN1_ROLE/OLD_DATA/ | JN1_ROLE | 歷史檔案；無生產價值 |
+| JN1_ROLE/runs/ | JN1_ROLE | YOLO 實驗結果；自動產生 |
+| LABS/ 下的實驗代碼 | JN1_AI | 未完成的測試；應歸檔或刪除 |
+| edge-tts 依賴 | JN1_ROLE | 已被 Kokoro 取代；移除 |
 
 ---
 
-## 伍、建議的統一資料夾架構（未來 0_JN1_Robotcar 整合版）
+## 四、建議的統一資料夾架構（未來 0_JN1_Robotcar）
 
 ```
-0_JN1_Robotcar/                    # 主工作區（當前已是）
-│
-├── src/                           # 生產代碼（保持現狀）
-│   ├── brain/                     # 決策層（參考 JN1_AI 的 BRAIN 架構）
-│   ├── vision/
-│   ├── asr/
-│   ├── tts/
-│   ├── ocr/
-│   ├── depth/
-│   └── agent/                     # ⭐ 未來整合 JN1_OPENCLAW 的 agent_framework
-│
-├── data/                          # 數據/模型存儲
-│   ├── ollama-new/                # Ollama 模型（已有）
-│   ├── asr-models/                # Whisper 模型
-│   ├── tts-models/                # Piper/Kokoro 模型
-│   └── hf/                        # Hugging Face 模型（depth、ocr）
-│
-├── docs/                          # 文檔
-│   ├── architecture/              # 系統設計文檔
-│   │   ├── BRAIN_層級設計.md      # 參考 JN1_AI 憲法
-│   │   ├── SENSES_感知設計.md
-│   │   └── ...
-│   ├── JN1_整併藍圖.md            # 本文檔
-│   ├── benchmarks/                # 性能基準（參考 JN1_AI LABS）
-│   └── ...
-│
-├── tests/                         # 測試
-│   ├── unit/
-│   ├── integration/
-│   └── benchmarks/
-│
-├── docker/                        # Docker 構建（已有）
+0_JN1_Robotcar/
+├── src/                           # 應用層
 │   ├── brain/
-│   ├── vision/
+│   │   ├── server.py              # FastAPI 對外介面
+│   │   ├── cognition/             # [直接複用] JN1_AI.COGNITION
+│   │   │   ├── task_decomposer.py
+│   │   │   ├── reasoning_controller.py
+│   │   │   ├── tool_router.py
+│   │   │   └── concept_engine.py
+│   │   ├── memory/                # [直接複用] JN1_AI.MEMORY
+│   │   │   ├── short_term_memory.py
+│   │   │   ├── long_term_memory.py
+│   │   │   ├── vector_memory.py
+│   │   │   └── memory_index.py
+│   │   ├── governance/            # [直接複用] JN1_AI.GOVERNANCE
+│   │   │   ├── behavior_guard.py
+│   │   │   ├── policy_auditor.py
+│   │   │   └── policy_matrix.json
+│   │   ├── agent/                 # [新增] 智慧體框架（參考 OPENCLAW）
+│   │   │   ├── core.py
+│   │   │   ├── tools.py
+│   │   │   └── mission_control.py
+│   │   ├── dialog_governor.py     # 對話管理
+│   │   ├── llm_gateway.py         # LLM 閘道
+│   │   └── event_bus.py           # 事件總線
 │   ├── asr/
+│   │   ├── server.py              # 已有；保留
+│   │   └── [已完成]
 │   ├── tts/
-│   └── ...
-│
-├── docker-compose.yml             # 主編排（已有，參考 JN1_AI 的 GPU/音訊配置）
-├── .env.example                   # 配置範本
-├── push.sh                        # Git 推送（已有）
-└── UPGRADE_LOG.md                 # 升級日誌（已有）
+│   │   ├── server.py              # 已有；補完 Kokoro 實現
+│   │   └── [升級中]
+│   ├── vision/
+│   │   ├── server.py              # 已有；擴充
+│   │   ├── detection/             # [直接複用] JN1_AI.eyes_tensorrt
+│   │   │   ├── yolo_engine.py
+│   │   │   └── yolo_model.engine
+│   │   ├── vlm_pipeline.py        # [新增] YOLO + VLM + 中文轉換
+│   │   ├── labels/
+│   │   │   ├── zh_CN.json         # [直接複用] JN1_ROLE.LABEL_MAP
+│   │   │   └── coco_labels.json
+│   │   └── [升級中]
+│   ├── depth/
+│   │   ├── server.py              # 已有
+│   │   └── [按需啟動]
+│   ├── ocr/
+│   │   ├── server.py              # 已有
+│   │   └── [按需啟動]
+│   └── infra/
+│       ├── messaging/             # [直接複用] JN1_AI.COMM
+│       │   ├── zmq_bus.py
+│       │   └── zmq_subscriber.py
+│       ├── supervisor.py          # [直接複用] JN1_AI.SYSTEM
+│       ├── metrics_collector.py
+│       ├── audit_logger.py
+│       └── ros_bridge.py          # [未來] ROS 2 集成
+├── config/
+│   ├── roles/
+│   │   ├── roles.yaml             # [直接複用] JN1_ROLE.roles.yaml
+│   │   └── role_prompts.json      # 角色提示詞
+│   ├── policies/
+│   │   └── policy_matrix.json     # [直接複用] JN1_AI.GOVERNANCE
+│   └── models/
+│       └── model_registry.json    # 模型清單
+├── docker/                        # 已有；擴充新服務
+│   ├── brain/
+│   │   └── Dockerfile            # [新增] 完整大腦服務鏡像
+│   ├── [asr/tts/vision/...]       # 已有
+├── docker-compose.yml             # 已有；加入新服務
+├── data/
+│   ├── models/                    # 本地模型快取
+│   │   ├── whisper/
+│   │   ├── llm/
+│   │   ├── vlm/
+│   │   ├── yolo/
+│   │   └── embeddings/
+│   ├── logs/
+│   ├── memory/                    # 持久化記憶（向量、索引）
+│   └── roles/                     # 角色狀態檔
+├── docs/
+│   ├── ARCHITECTURE.md            # 架構文檔
+│   ├── JN1_整併藍圖.md             # 本檔案
+│   └── API.md
+├── ops/
+│   └── [健檢、回滾、部署]
+└── [其他已有檔案]
 ```
 
 ---
 
-## 陸、技術債整理與優先級
+## 五、中文視覺卡關的解法建議
 
-| 項目 | 來源 | 優先級 | 處理方式 | 預計工作量 |
-|------|------|--------|---------|-----------|
-| Vision AI（中文 VLM） | 0_JN1_Robotcar | 🔴 高 | M3-1c 已用 LLM 替代方案應急；長期待新 VLM 釋出 | 低（現狀已可用） |
-| Memory System 升級 | JN1_AI 參考 | 🟡 中 | 當前 deque 可用，可升級到三層記憶 | 中（2-3 天） |
-| Agent Framework 集成 | JN1_OPENCLAW | 🟡 中 | 未來用於多技能編排，當前無須急 | 高（1-2 週） |
-| 代碼版本管理 | 四專案通病 | 🟡 中 | 統一到 git，廢棄所有 backup/ 目錄 | 低（清理） |
-| 日誌/快取 清理 | JN1_AI | 🟢 低 | 保留原位唯讀，不同步到新專案 | 低（無需動） |
-| ROS 2 橋接 | JN1_ROS2 | 🔵 低 | 0_JN1_Robotcar 現階段無需，保留參考 | 無（未來規劃） |
+### 現狀分析
 
----
+**問題**：`vision/server.py` 中的 VLM（llava/moondream）輸出英文描述，需要翻譯成繁體中文。
 
-## 柒、整併執行計畫（次序與時間表）
+**當前臨時方案**（已在 0_JN1_Robotcar 實施）：
+- 使用 `opencc` 轉換英文 → 繁體中文（有局限，只能轉簡中→繁中）
+- 例：`"A cat on the desk"` → `"A cat on the desk"`（OpenCC 無法翻譯英文）
 
-### Phase 1：資產交付（已完成，本輪盤點）
-- ✅ 逐一盤點四專案結構、運行狀態、核心資產
-- ✅ 編製本藍圖文檔
+### 三個完整解法
 
-### Phase 2：代碼整合（建議順序，0_JN1_Robotcar 內部）
-1. **優先**（已做或無須）
-   - ✅ 模型遷移：LLM/Whisper/TTS 已在用
-   - ✅ Docker 編排：已參考 JN1_AI 配置
-   - ✅ 繁體輸出：M3-1c opencc 已整合
+#### **解法 A：英文 VLM + LLM 翻譯樞紐** ✅ 推薦
 
-2. **次優先**（建議做）
-   - Memory System 升級（參考 JN1_AI/BRAIN/MEMORY）
-   - 完整的 GOVERNANCE 層（行為約束）
-   - 整合式 Agent Framework（參考 JN1_OPENCLAW）
+**步驟**：
+1. VLM（llava）生成英文描述
+2. 呼叫 qwen2.5:3b LLM，prompt：`"將以下英文轉為繁體中文，簡潔一句話：{英文描述}"`
+3. 返回繁體中文輸出
 
-3. **低優先**（可延後）
-   - ROS 2 機制整合（若需要移動）
-   - Vision Lab 基準測試
-   - 線上 API 備選方案
+**優點**：
+- 利用現有模型（llava 已拉，qwen 已拉）
+- 翻譯準確度高（LLM 理解語境）
+- 支援複雜場景描述
 
-### Phase 3：維護模式
-- 四舊專案保持唯讀狀態
-- 定期檢查是否有新的可用資源
-- 0_JN1_Robotcar 作為統一入口
+**缺點**：
+- 延遲 ~2~3 秒（需要喚醒 qwen）
+- VRAM 需要同時載 VLM + LLM（可用 `OLLAMA_KEEP_ALIVE` 控制卸載)
 
----
-
-## 捌、唯讀確認聲明
-
-✅ **盤點期間所有文件系統操作確認**：
-
-- 四個舊資料夾（JN1_AI、JN1_OPENCLAW、JN1_ROLE、JN1_ROS2）：
-  - ✅ 僅執行 cat/ls/find/tree 等唯讀命令
-  - ✅ 未執行任何 cp/mv/rm/edit 修改操作
-  - ✅ 未在舊專案內產生任何新檔案
-  - ✅ 未接觸 code.env 或其他機密文件
-  - ✅ 所有資料夾保持原狀（可驗證 mtime）
-
-**盤點工具清單**：
-```bash
-# 全程使用的命令集（無修改能力）
-- find / ls / tree
-- cat / head / grep  
-- docker ps / docker-compose config
-- （無 chmod/rm/cp/mv）
+**實現**：
+```python
+# src/vision/vlm_pipeline.py
+def describe_scene_zh(image_b64: str) -> str:
+    # 1. VLM 描述
+    vlm_desc = ollama_vlm_chat(VLM_MODEL, image_b64, "Describe this scene briefly.")
+    
+    # 2. LLM 翻譯
+    llm_prompt = f"Translate to Traditional Chinese (one sentence): {vlm_desc}"
+    zh_desc = ollama_llm_chat(LLM_MODEL, llm_prompt)
+    
+    return zh_desc
 ```
 
-**結論**：四舊專案完全未修改，可安全保留作為唯讀參考資料庫。
+#### **解法 B：YOLO 檢測 + 中文標籤 + 語言模型描述**
+
+**步驟**：
+1. 用 TensorRT YOLO 檢測物件
+2. 對應中文標籤（來自 JN1_ROLE）
+3. 用 LLM 根據檢測結果生成自然中文描述
+
+**優點**：
+- 不需 VLM VRAM（只需 YOLO + LLM）
+- 延遲短（~1 秒）
+- 中文輸出原生
+
+**缺點**：
+- 只能列舉物件，難以描述場景細節、動作、顏色等
+- 依賴 YOLO 檢測精度
+
+**實現**：
+```python
+# JN1_AI.eyes_tensorrt + JN1_ROLE.vision
+def describe_with_detection(frame) -> str:
+    detections = yolo_model.predict(frame)  # [{"label": "人", "conf": 0.9}, ...]
+    obj_str = ", ".join([d["label"] for d in detections])
+    
+    prompt = f"用繁體中文一句話描述這個場景，其中包含：{obj_str}"
+    return ollama_llm_chat(LLM_MODEL, prompt)
+```
+
+#### **解法 C：遠端中文 VLM API** 🚀 未來方向
+
+使用專業中文 VLM（需聯網），如：
+- **Qwen-VL**（阿里；0.5B ~ 7B）
+- **InternVL**（旷视；高精度）
+- **GLM-4V**（清華智譜；多模態）
+- **Baichuan-3-Vision**（百川）
+
+**優點**：
+- 原生中文輸出
+- 描述品質更高
+
+**缺點**：
+- 需聯網
+- API 成本
+- Jetson 上難以本地運行大模型
 
 ---
 
-## 玖、最終總結與建議
+### 建議優先順序
 
-### 盤點發現
-
-1. **架構多樣性**：四專案各有側重（AI 決策層、Agent 框架、角色系統、ROS 橋接），無重複
-2. **資產寶藏**：JN1_AI 最成熟，憲法+架構可直接參考；JN1_OPENCLAW 框架可用；JN1_ROLE/ROS2 需要就業
-3. **技術債集中**：版本控制、日誌爆炸、半成品 skills 是主要負擔
-
-### 當前 0_JN1_Robotcar 的位置
-
-- **Voice AI**：✅ 完善（ASR/TTS/Brain 已可用）
-- **Vision AI**：⚠️ 應急中（LLM 替代 VLM，繁體已做，待真 VLM）
-- **系統架構**：參考了 JN1_AI 但簡化很多（專注 Jetson Orin NX）
-
-### 建議的下一步
-
-1. **短期（1-2 週）**：保持現狀，0_JN1_Robotcar 作為新主線
-2. **中期（1-2 月）**：整合 Agent Framework，支持多技能編排
-3. **長期（3-6 月）**：等待新中文 VLM 釋出（如 qwen-vl），升級視覺層
-4. **持續**：四舊專案作為唯讀知識庫，不再維護但保留參考價值
+| 優先級 | 方案 | 時機 | 成本 |
+|---|---|---|---|
+| **1（立即）** | **A（翻譯樞紐）** | 下個 sprint；利用現有模型 | 低；+2~3 秒延遲 |
+| **2（1 個月）** | **B（檢測+標籤）** | 若 A 延遲無法接受 | 中；需 YOLO TRT 優化 |
+| **3（3 個月+）** | **C（中文 VLM）** | 若預算允許；外包或 API | 高；聯網依賴 |
 
 ---
 
-**文檔簽署**：
-- 盤點者：Claude Code（M3-1c 完成後自動執行）
-- 盤點方法：完全唯讀掃描 + 檔案結構分析 + 架構對比
-- 可驗證性：無修改操作，原始檔案保完整
-- 下一次盤點：建議 6 個月後（Q2 2026）重新評估四專案狀態與新資源
+## 六、遷移計劃（分期實施）
 
+### Phase 1：基礎整合（1~2 週）
+
+- [ ] 複製 JN1_AI 的 BRAIN、SENSES 到 `src/` 下
+- [ ] 清理版本檔（刪 main_v7~v10.py）
+- [ ] 搭建 `src/brain/server.py` FastAPI 主框架
+- [ ] 集成 MEMORY + GOVERNANCE 模組
+- [ ] 實施**解法 A**（英文 VLM + LLM 翻譯）
+
+### Phase 2：角色 + 檢測強化（2~4 週）
+
+- [ ] 遷移 JN1_ROLE 的 roles.yaml + 角色提示詞
+- [ ] 集成 TensorRT YOLO（來自 JN1_AI）+ 中文標籤（來自 JN1_ROLE）
+- [ ] 實現**解法 B** 作為備選方案
+- [ ] 測試多角色對話狀態管理
+
+### Phase 3：智慧體框架（4~6 週）
+
+- [ ] 設計清晰的 Agent 框架（去除 OPENCLAW 的重複代碼）
+- [ ] 實現 tool_router 與 mission_control
+- [ ] 集成 Ollama 多模型路由（LLM + VLM + 檢測）
+
+### Phase 4：ROS 2 與移動（6+ 週）
+
+- [ ] 完成 jn1_ros_bridge.py；測試移動指令
+- [ ] 集成底盤控制與視覺回饋迴圈
+- [ ] 端到端測試
+
+### 清理任務（並行）
+
+- [ ] 刪除 JN1_OPENCLAW/skills_bridge/（代碼重複）
+- [ ] 歸檔 JN1_AI/LABS/；留下關鍵實驗代碼
+- [ ] 整理 JN1_ROLE/OLD_DATA/、JN1_ROLE/runs/
+
+---
+
+## 七、唯讀確認聲明
+
+本盤點過程中，**四個舊資料夾全程唯讀**，未做任何修改：
+
+✅ `/home/jetson/JN1_AI` — 未變更  
+✅ `/home/jetson/JN1_OPENCLAW` — 未變更  
+✅ `/home/jetson/JN1_ROLE` — 未變更  
+✅ `/home/jetson/JN1_ROS2` — 未變更  
+
+**機密檔案未訪問**：
+- `code.env` 未讀取（已標記為禁止）
+
+**生成物位置**：
+- 本檔案：`/home/jetson/0_JN1_Robotcar/docs/JN1_整併藍圖.md`
+
+---
+
+## 附錄 A：核心資產遷移檢查清單
+
+```
+[ ] BRAIN/COGNITION
+    [ ] task_decomposer.py → src/brain/cognition/
+    [ ] reasoning_controller.py → src/brain/cognition/
+    [ ] tool_router.py → src/brain/cognition/
+    [ ] concept_engine.py → src/brain/cognition/
+
+[ ] BRAIN/MEMORY
+    [ ] short_term_memory.py → src/brain/memory/
+    [ ] long_term_memory.py → src/brain/memory/
+    [ ] vector_memory.py → src/brain/memory/
+    [ ] memory_index.py → src/brain/memory/
+
+[ ] BRAIN/GOVERNANCE
+    [ ] behavior_guard.py → src/brain/governance/
+    [ ] policy_auditor.py → src/brain/governance/
+    [ ] policy_matrix.json → config/policies/
+
+[ ] SENSES
+    [ ] ears_whisper.py → src/asr/ (驗證已有)
+    [ ] eyes_tensorrt.py → src/vision/detection/
+
+[ ] COMM
+    [ ] zmq_bus.py → src/infra/messaging/
+    [ ] zmq_subscriber.py → src/infra/messaging/
+
+[ ] Models
+    [ ] whisper-base/ → data/models/whisper/
+    [ ] paraphrase-multilingual-MiniLM-L12-v2/ → data/models/embeddings/
+    [ ] tts/* → data/models/tts/
+
+[ ] JN1_ROLE Assets
+    [ ] roles.yaml → config/roles/
+    [ ] LABEL_MAP → src/vision/labels/zh_CN.json
+    [ ] memory_fabric.py → src/brain/memory/ (參考重寫)
+
+[ ] JN1_OPENCLAW
+    [ ] Agent framework 概念 → src/brain/agent/ (新設計)
+```
+
+---
+
+## 附錄 B：中文視覺驗收標準
+
+**預期行為**（實施解法 A 後）：
+
+1. **拍照**：`bash bin/see.sh`
+2. **VLM 描述**（英文）：`"A cat sitting on a blue chair in a bright room"`（~1 秒）
+3. **LLM 翻譯**：`"一隻貓坐在亮藍色椅子上，房間很明亮"`（~2 秒）
+4. **語音播放**（繁體中文）：Kokoro 讀出中文描述（~1 秒）
+
+**總延遲目標**：≤ 4 秒（使用者可接受）
+
+**驗收指標**：
+- ✅ 中文輸出無誤（繁體、無簡字）
+- ✅ 語句自然流暢
+- ✅ 複雜場景描述準確（不只是物件列舉）
+- ✅ 延遲 ≤ 5 秒
+
+---
+
+**文檔版本**：v1.0  
+**最後更新**：2026-08-23  
+**維護人**：JN1 系統集成團隊
