@@ -1,0 +1,14 @@
+# N3 debug override — TEMPORARILY expose internal services on 127.0.0.1 for troubleshooting.
+# Use:  docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d
+# Revert (lock back down):  docker compose up -d   (recreates without these extra ports)
+# NOTE: this is an override file, not a Compose `profile` — profiles gate whole services,
+#       they cannot add ports to a service, so the correct mechanism is this override.
+services:
+  ollama-new:
+    ports: ["127.0.0.1:21434:11434"]
+  asr:
+    ports: ["127.0.0.1:21501:8000"]
+  tts:
+    ports: ["127.0.0.1:21502:8000"]
+  vision:
+    ports: ["127.0.0.1:21503:8000"]

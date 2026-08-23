@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la docker/)",
+      "Bash(ls -la docker/tts/)",
+      "Bash(docker compose *)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"%{http_code}\\\\n\" https://pypi.org)",
+      "Bash(docker exec *)",
+      "Bash(docker stats *)",
+      "Bash(curl -s -X POST http://127.0.0.1:8004/say -H \"Content-Type: application/json\" -d '{\"text\":\"嗨\"}')",
+      "Bash(curl -s http://127.0.0.1:8004/health)",
+      "Bash(curl -s -X POST http://127.0.0.1:8004/say -H \"Content-Type: application/json\" -d '{\"text\":\"歡迎使用機器人\"}')",
+      "Bash(awk 'NR==1 || NR==2 {print}')",
+      "Bash(awk '{printf \"%-20s %10s %12s\\\\n\", $2, $4, $7}')",
+      "Bash(docker stop *)",
+      "Bash(curl -s http://127.0.0.1:8000/health)",
+      "Bash(curl -s http://127.0.0.1:8003/health)",
+      "Bash(timeout 5 bash -c \"cat < /dev/null > /dev/tcp/172.18.0.4/8000\")",
+      "Bash(netstat -tlnp)",
+      "Bash(docker port *)",
+      "Bash(curl -X POST http://127.0.0.1:8003/transcribe -F \"file=@/etc/hosts\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8003/transcribe -F \"file=@/etc/hosts\")",
+      "Bash(ffmpeg -y -f lavfi -i anullsrc=r=16000:cl=mono -t 0.5 /tmp/test.wav)",
+      "Bash(curl -s -X POST http://127.0.0.1:8003/transcribe -F \"file=@/tmp/test.wav\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8004/say -H 'Content-Type: application/json' -d '{\"text\":\"嗨\"}')"
+    ]
+  }
+}

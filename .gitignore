@@ -1,0 +1,5 @@
+.env
+data/
+*.wav
+__pycache__/
+*.pyc

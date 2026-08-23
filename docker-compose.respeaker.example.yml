@@ -1,0 +1,20 @@
+# ReSpeaker 4-Mic Array 整合範例（尚未接上硬體，暫不套用，僅供未來參考）
+#
+# 來源：本檔案是「讀取」/home/jetson/JN1_AI/docker-compose.yaml 內已驗證可行的
+# ReSpeaker 音訊直通設定後，於 0_JN1_Robotcar 內重新撰寫、改寫成 Robotcar 現行
+# asr/tts 服務所需格式，JN1_AI 原始檔案全程唯讀、未被修改。
+#
+# 使用方式（麥克風陣列接上後）：
+#   1. 用 `pactl list sources short` 找出實際的 ReSpeaker source 名稱，
+#      取代下面 PULSE_SOURCE 的值（各台機器的序號後綴不同）。
+#   2. docker compose -f docker-compose.yml -f docker-compose.override.yml \
+#        -f docker-compose.respeaker.example.yml up -d --no-deps asr
+#
+services:
+  asr:
+    environment:
+      # 指定 ReSpeaker 為錄音輸入源（對應 JN1_AI 的 Golden Setting）
+      - PULSE_SOURCE=alsa_input.usb-Seeed_Studio_reSpeaker_XVF3800_4-Mic_Array_XXXXXXXX-00.analog-stereo
+    group_add: ["audio", "plugdev"]
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
