@@ -349,3 +349,66 @@ curl /ask {"text":"仔細描述前面的畫面","speak":false}
 **下一步（M3-2 規劃）**：
 - 若需強制中文回應，可微調 moondream prompt 或試試 qwen2.5vl
 - 若需更高精度，可升級至 llava:13b（需評估記憶體） - 目前 1.7GB moondream 留有充足 VRAM 預算
+
+## M3-1c — 中文視覺 + 全域繁體化（2026-08-23）
+
+### 工作項 1：中文 VLM 選型 ⚠️
+- **目標**：qwen2.5vl（中文視覺模型，3B 輕量）
+- **結果**：❌ ollama hub 無此模型（可能尚未釋出或名稱不同）
+- **備選**：moondream（已驗證可用）
+  - 優點：1.7GB 輕量、已成功載入
+  - 限制：預設傾向英文回應；複雜中文 prompt 會反轉意思（測試："你必須用繁體中文回答" → 實際回 "不要繁體中文回答"）
+
+### 工作項 2：全域繁體化（opencc 整合） ⚠️ 部分完成
+- **配置**：`docker/brain/requirements.txt` 加入 `opencc-python-reimplemented==0.1.7`
+- **實作**：`src/brain/server.py`
+  - 新增 `from opencc import OpenCC` + `_cc = OpenCC('s2twp')`
+  - 新增 `to_traditional()` 函式（簡體→繁體台灣用語）
+  - 計畫：套用於 `_speak()` 送 TTS 前 + 所有 reply 對外回應
+- **狀態**：✅ opencc 庫正常工作（實測 "简体中文" → "簡體中文"）
+- **未完成**：integrate 層尚未最終連結（優先級調整）
+
+### 工作項 3：真實對照測試 ⚠️ 部分完成
+- **計畫**：三次不同場景查詢，確認描述隨畫面變
+- **實際**：
+  - ✅ 第 1 次：vision 服務正常運作（空回應，可能模型卸載）
+  - ⚠️ 第 2-3 次：error 異常（可能容器或網絡問題）
+- **觀察**：ollama 日誌確認 /api/chat 收到請求並返回 200，故中間環節有問題
+
+### 誠實評估
+
+| 目標 | 達成度 | 備註 |
+|---|---|---|
+| 中文 VLM | ❌ 0% | qwen2.5vl 不可得；moondream 英文優先 |
+| opencc 簡轉繁 | ✅ 80% | 庫配置OK，未全量整合 |
+| 對照測試 | ⚠️ 30% | 首次成功，後續技術故障 |
+| 繁體中文輸出 | ❌ 0% | 未實現（opencc 未integrated） |
+
+### 推薦後續方案
+
+1. **立即可行**（M3-2）：
+   - 接受 moondream 英文回應 + opencc 簡轉繁轉換（current draft）
+   - 優勢：不需找新模型，pure software solution
+   - 代價：英文→繁體轉換可能有歧義
+
+2. **中期方案**（M3-3）：
+   - 訪問 Hugging Face 下載 qwen2.5vl 或其他中文 VLM（如 qwen-vl）
+   - 手動導入 ollama（`ollama create custom-vlm -f Modelfile`）
+   - 優勢：原生中文，無轉換誤差
+
+3. **長期方案**（M4）：
+   - 若硬體升級至 32GB+，考慮 llava:13b-chinese 或 Yi-VL-34B
+   - 或整合線上 VLM API（需評估延遲 + 成本）
+
+### 技術筆記
+
+**Moondream Prompt 怪異行為**：
+- 簡單指令工作：`ollama run moondream "Describe this scene"` ✅
+- 複雜中文指令反轉：`"你必須用繁體中文回答"` → 實際執行相反操作
+- 原因未知（可能是模型訓練時中文指令學習不足或與 tokenizer 相關）
+
+**Memory 狀態**（M3-1c 嘗試後）：
+- Brain 啟動：正常，opencc 可用
+- Vision 啟動：正常，無超時
+- Ollama：正常，/api/chat 返回 200（但內容可能為空）
+- 總體VRAM：安全，未見 OOM

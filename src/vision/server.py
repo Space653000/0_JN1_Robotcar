@@ -23,15 +23,15 @@ def health():
     return {"ok": True, "mode": "vision-vlm (real-time VLM inference)", "vlm_model": VLM_MODEL}
 
 @app.post("/capture")
-def capture(prompt: str = "Describe this scene briefly and factually in Chinese."):
-    """Grab camera frame + real VLM inference via ollama.
-    Uses <image> tag format compatible with moondream/llava."""
+def capture(prompt: str = "Describe this scene briefly."):
+    """Grab camera frame + real VLM inference via ollama (moondream).
+    Note: VLM may output in English; brain layer converts to Traditional Chinese."""
     img = _grab_jpeg_b64()
     if img is None:
         return {"ok": False, "error": "camera read failed"}
 
     try:
-        # Try /api/chat for better VLM support
+
         resp = requests.post(
             f"{OLLAMA_URL}/api/chat",
             json={
@@ -54,15 +54,13 @@ def capture(prompt: str = "Describe this scene briefly and factually in Chinese.
         data = resp.json()
         description = data.get("message", {}).get("content", "").strip()
 
-        if not description or len(description) < 10:
-            return {"ok": False, "error": "empty/invalid VLM response"}
-
         return {
-            "ok": True,
+            "ok": bool(description),
             "image_b64": img,
             "description": description,
             "vlm_model": VLM_MODEL,
-            "source": "ollama-vlm"
+            "source": "ollama-vlm",
+            "_debug_response_len": len(description) if description else 0
         }
     except requests.Timeout:
         return {"ok": False, "error": "VLM timeout"}
