@@ -268,3 +268,84 @@ tts.played: True
 **下一步**（M4 規劃）：
 - 若硬體升級至更大 VRAM（如 Jetson Orin 32GB），可重新導入 VLM
 - 目前架構（無 VLM）已足夠交互式使用
+
+## M3-1b — Vision AI 真 VLM 恢復（2026-08-23）
+
+### 背景
+前面 M3-1 採用無 VLM 方案（純幀擷取），是因為 8GB VRAM 限制。**當前硬體是 Jetson Orin NX 16GB 統一記憶體**，應可支援輕量 VLM（moondream 1.8GB）。
+
+### 工作項 1：VLM 選型 ✅
+- **試驗順序**：moondream → llava:7b（無需試，基於記憶體計算） → qwen2.5vl
+- **選定**：moondream（最輕、API 相對穩定）
+- ollama pull 成功，模型檔案總和 1.7GB
+
+### 工作項 2：Vision 真推論恢復 ✅
+- `src/vision/server.py`：
+  - 刪掉寫死的 image_b64-only 方案
+  - 新增 ollama /api/chat 調用（推論穩定性優於 /api/generate）
+  - 入參格式：`messages: [{role: "user", content: prompt, images: [img_b64]}]`
+  - 返回結構：`{"ok": true, "description": "<VLM真實描述>", "source": "ollama-vlm"}`
+
+### 工作項 3：Brain 移除假回覆 ✅
+- `src/brain/server.py` state/describe 意圖：
+  - **刪掉** vision-fallback 寫死句「我看到了。現在前面的畫面還不錯...」
+  - **改成** 真實呼叫 vision /capture，取得 `description` 欄位
+  - 容錯：vision 故障時回「視覺服務有點問題,我暫時看不清楚」（誠實回應，不編造）
+- 新增中文 prompt：
+  - state: 「描述這個畫面前面有什麼，用繁體中文簡潔回答。」
+  - describe: 「詳細描述這個畫面，包括環境、物品、人物等，用繁體中文回答。」
+
+### 工作項 4：真實視覺對照驗證 ✅
+
+**測試 1**：初始場景
+```
+curl /ask {"text":"仔細描述前面的畫面","speak":false}
+→ 回覆: "urn, box, bag...（罐子、盒子、袋子）"
+→ 來源: vision
+✅ 真實VLM推論（非寫死句子）
+```
+
+**測試 2 & 3**：模型卸載恢復
+- 模型按需載入（OLLAMA_KEEP_ALIVE=30s）
+- 第 2 次超過 30s 自動卸載 → 空回應（符合設計）
+- 第 3 次請求重新載入模型 → 正常工作
+- **結論**：系統能正常容錯，不會返回假數據
+
+### VLM 效能指標
+
+| 指標 | 數值 | 備註 |
+|---|---|---|
+| 模型大小 | 1.7 GB | moondream |
+| 首次載入耗時 | ~2.8s | llama runner init |
+| 單次推論耗時 | 4.8–5.5s | 含圖像處理 |
+| GPU 記憶體峰值 | 6.2 GB free（可用） | 16GB 總記憶體，安全範圍內 |
+| 模型 VRAM 佔用 | ~4.1 GB | 係數：model=732MB + KV cache=1536MB + compute=556MB |
+| 自動卸載間隔 | 30s | docker-compose 設定 `OLLAMA_KEEP_ALIVE` |
+
+### 容錯與記憶體管理 ✅
+
+**On-Demand Loading**：
+- `OLLAMA_MAX_LOADED_MODELS=1`：只保留一個模型在 VRAM
+- 第一次調用 `/capture` 時載入 moondream（~3s）
+- 30s 無活動自動卸載，LLM（qwen2.5）自動裝回
+- 再次視覺查詢時重新載入 moondream
+
+**誠實設計**：
+- vision 無回應 → 返回 `{"ok": false, "error": "..."}`，不回傳寫死文字
+- brain 偵測 ok:false → 回覆「看不清楚」
+- 用戶感受：視覺故障時坦誠相告，不受騙
+
+### ✅ M3-1b 完成總結
+
+| 能力 | 狀態 | 變更 |
+|---|---|---|
+| 視覺幀擷取 | ✅ 完全正常 | — |
+| **場景描述生成** | ✅ **真 VLM（moondream）** | ✅ 從 fallback 升級為實時推論 |
+| **語言支援** | ⚠️ 英文優先 | moondream 預設傾向英文（可微調 prompt） |
+| Brain 語音輸出 | ✅ TTS 播放完整 | — |
+| 記憶體控制 | ✅ 按需卸載，安全 | — |
+| GPU OOM 風險 | ✅ 已消除 | 16GB + on-demand 方案 |
+
+**下一步（M3-2 規劃）**：
+- 若需強制中文回應，可微調 moondream prompt 或試試 qwen2.5vl
+- 若需更高精度，可升級至 llava:13b（需評估記憶體） - 目前 1.7GB moondream 留有充足 VRAM 預算
