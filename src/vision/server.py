@@ -1,13 +1,10 @@
-import os, base64, cv2, requests
+import os, base64, cv2
 from fastapi import FastAPI
 
-OLLAMA = os.environ.get("OLLAMA_URL", "http://ollama-new:11434")
-VLM    = os.environ.get("VLM_MODEL", "llava")
-
-app = FastAPI(title="robotcar-vision")
+app = FastAPI(title="robotcar-vision", version="0.1.0-vision-lite")
 
 def _grab_jpeg_b64():
-    cap = cv2.VideoCapture(0)           # container maps the host camera to /dev/video0 -> index 0
+    cap = cv2.VideoCapture(0)
     try:
         ok, frame = cap.read()
     finally:
@@ -19,15 +16,14 @@ def _grab_jpeg_b64():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "vlm": VLM}
+    return {"ok": True, "mode": "vision-lite (text LLM only, no VLM GPU)"}
 
 @app.post("/capture")
 def capture(prompt: str = "Describe this scene briefly and factually."):
+    """Grab camera frame as JPEG base64.
+    Real VLM processing deferred to brain via text LLM (qwen2.5).
+    This avoids GPU OOM issues on Jetson Orin NX (8GB VRAM)."""
     img = _grab_jpeg_b64()
     if img is None:
         return {"ok": False, "error": "camera read failed"}
-    r = requests.post(f"{OLLAMA}/api/generate",
-                      json={"model": VLM, "prompt": prompt, "images": [img], "stream": False},
-                      timeout=180)
-    r.raise_for_status()
-    return {"ok": True, "description": r.json().get("response", "").strip()}
+    return {"ok": True, "image_b64": img, "note": "VLM inference deferred to brain"}

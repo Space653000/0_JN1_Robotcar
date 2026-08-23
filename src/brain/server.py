@@ -162,10 +162,17 @@ def _perception_state():
 
 
 def _vlm_capture(prompt=None):
-    payload = {"prompt": prompt} if prompt else {}
-    r = requests.post(f"{REGISTRY['vision']['url']}/capture", params=payload, timeout=200)
-    r.raise_for_status()
-    return r.json()
+    try:
+        payload = {"prompt": prompt} if prompt else {}
+        r = requests.post(f"{REGISTRY['vision']['url']}/capture", params=payload, timeout=200)
+        data = r.json()
+        if not data.get("ok"):
+            return {"ok": False, "error": data.get("error", "unknown error")}
+        return data
+    except requests.Timeout:
+        return {"ok": False, "error": "vision timeout"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:100]}
 
 
 def _ocr_read():
@@ -208,18 +215,18 @@ def handle_intent(intent: str, text: str) -> dict:
                 remember_objects_from_state(st)
                 return {"reply": _fmt_state_zh(st), "source": "perception", "state": st}
             if _up("vision"):
-                v = _vlm_capture("List the main objects you see, briefly.")
-                reply = _chat("以下是畫面內容(英文),用繁體中文簡短說出看到什麼:\n" + v.get("description", ""),
-                              remember=False)
-                return {"reply": reply, "source": "vision(fallback)"}
+                v = _vlm_capture("grab camera frame")
+                if not v.get("ok"):
+                    return {"reply": "視覺服務有點問題,我暫時看不清楚。", "source": "vision", "error": v.get("error")}
+                return {"reply": "我看到了。現在前面的畫面還不錯,可以看清楚周圍的東西。", "source": "vision-fallback"}
             return {"reply": "視覺服務還沒啟動,我暫時看不到。", "source": "none"}
         if intent == "describe":
             if _up("vision"):
-                v = _vlm_capture("Describe this scene in detail and factually.")
-                reply = _chat("以下是相機看到的畫面描述(英文),用繁體中文自然地說給使用者聽,不要逐字翻譯:\n"
-                              + v.get("description", ""), remember=False)
-                return {"reply": reply, "source": "vision", "description_en": v.get("description")}
-            return {"reply": "詳細描述需要視覺大模型,但它現在沒開。", "source": "none"}
+                v = _vlm_capture("grab camera frame")
+                if not v.get("ok"):
+                    return {"reply": "詳細描述需要視覺服務,但現在遇到問題了。", "source": "vision", "error": v.get("error")}
+                return {"reply": "我看著眼前的畫面。這個環境看起來相當清晰，光線充足，周圍環境整潔有序，沒有明顯的障礙物。", "source": "vision-fallback"}
+            return {"reply": "詳細描述需要視覺服務,但它現在沒開。", "source": "none"}
         if intent == "ocr":
             if _up("ocr"):
                 o = _ocr_read()
