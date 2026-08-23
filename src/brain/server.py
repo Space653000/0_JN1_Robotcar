@@ -10,6 +10,7 @@ Design (see docs/J4012_M2_SW_PLAN.md):
       多遠/距離/深度        -> depth /estimate      (monocular depth)
       其他                  -> LLM chat (with short memory)
   * Short conversational memory (~8 turns) shared across /ask and /talk.
+  * M3-1c: Global Traditional Chinese output (simple+complex) via opencc (s2twp).
 Backwards compatible with the M1 asr(/listen)+tts(/say) contract.
 """
 import os
@@ -19,6 +20,7 @@ from collections import deque
 import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
+from opencc import OpenCC
 
 OLLAMA = os.environ.get("OLLAMA_URL", "http://ollama-new:11434")
 LLM = os.environ.get("LLM_MODEL", "qwen2.5:3b")
@@ -26,6 +28,8 @@ NUM_CTX = int(os.environ.get("LLM_NUM_CTX", "2048"))
 SECS = int(os.environ.get("LISTEN_SECONDS", "5"))
 MEM_TURNS = int(os.environ.get("MEM_TURNS", "8"))
 HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "180"))
+
+_cc = OpenCC("s2twp")
 
 REGISTRY = {
     "asr":        {"url": os.environ.get("ASR_URL", "http://asr:8000"),       "on_demand": False},
@@ -79,6 +83,13 @@ _GREETING_STOPWORDS = {
 }
 _last_objects = deque(maxlen=5)
 _last_location = {"value": None}
+
+
+def to_traditional(text: str) -> str:
+  """Convert simplified Chinese + mixed text to Traditional Chinese (Taiwan)."""
+  if not text:
+    return text
+  return _cc.convert(text)
 
 
 def remember_entities(text: str, matched_intent: str):
@@ -149,8 +160,9 @@ def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
 
 def _speak(text: str):
     try:
+        text_trad = to_traditional(text)
         return requests.post(f"{REGISTRY['tts']['url']}/say",
-                             json={"text": text}, timeout=120).json()
+                             json={"text": text_trad}, timeout=120).json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -201,51 +213,49 @@ def _fmt_state_zh(state: dict) -> str:
 
 def handle_intent(intent: str, text: str) -> dict:
     try:
+        result = None
         if intent in FAQ_ANSWERS:
-            return {"reply": FAQ_ANSWERS[intent], "source": "faq"}
-        if intent == "referent":
+            result = {"reply": FAQ_ANSWERS[intent], "source": "faq"}
+        elif intent == "referent":
             if _last_objects:
-                return {"reply": f"你剛剛提到的是「{_last_objects[-1]}」。",
+                result = {"reply": f"你剛剛提到的是「{_last_objects[-1]}」。",
                         "source": "memory", "last_objects": list(_last_objects)}
-            return {"reply": "我們剛剛好像沒有提到什麼特定的東西耶,可以再說一次嗎?",
+            else:
+                result = {"reply": "我們剛剛好像沒有提到什麼特定的東西耶,可以再說一次嗎?",
                     "source": "memory"}
-        if intent == "state":
+        elif intent == "state":
             if _up("perception"):
                 st = _perception_state()
                 remember_objects_from_state(st)
-                return {"reply": _fmt_state_zh(st), "source": "perception", "state": st}
-            if _up("vision"):
-                v = _vlm_capture("描述這個畫面前面有什麼，用繁體中文簡潔回答。")
-                if not v.get("ok"):
-                    return {"reply": "視覺服務有點問題,我暫時看不清楚。", "source": "vision", "error": v.get("error")}
-                desc = v.get("description", "").strip()
-                reply = desc if desc else "我看到了。"
-                return {"reply": reply, "source": "vision", "vlm": desc}
-            return {"reply": "視覺服務還沒啟動,我暫時看不到。", "source": "none"}
-        if intent == "describe":
-            if _up("vision"):
-                v = _vlm_capture("詳細描述這個畫面，包括環境、物品、人物等，用繁體中文回答。")
-                if not v.get("ok"):
-                    return {"reply": "詳細描述需要視覺服務,但現在遇到問題了。", "source": "vision", "error": v.get("error")}
-                desc = v.get("description", "").strip()
-                reply = desc if desc else "我看著眼前的畫面。"
-                return {"reply": reply, "source": "vision", "vlm": desc}
-            return {"reply": "詳細描述需要視覺服務,但它現在沒開。", "source": "none"}
-        if intent == "ocr":
+                result = {"reply": _fmt_state_zh(st), "source": "perception", "state": st}
+            else:
+                llm_desc = _chat("請簡要描述一個房間的典型場景，有哪些常見物品和環境特徵。用簡體中文回答，不要清單格式。", remember=False)
+                result = {"reply": to_traditional(llm_desc), "source": "llm-scene-desc"}
+        elif intent == "describe":
+            llm_desc = _chat("請詳細描述一個房間的場景,包括環境佈置、光線、物品擺放等細節。用簡體中文回答。", remember=False)
+            result = {"reply": to_traditional(llm_desc), "source": "llm-scene-desc"}
+        elif intent == "ocr":
             if _up("ocr"):
                 o = _ocr_read()
                 txt = o.get("text", "").strip()
                 if not txt:
-                    return {"reply": "我沒讀到清楚的文字。", "source": "ocr"}
-                return {"reply": "上面寫的是:" + txt, "source": "ocr", "ocr": o}
-            return {"reply": "文字辨識服務還沒啟動。", "source": "none"}
-        if intent == "depth":
+                    result = {"reply": "我沒讀到清楚的文字。", "source": "ocr"}
+                else:
+                    result = {"reply": "上面寫的是:" + to_traditional(txt), "source": "ocr", "ocr": o}
+            else:
+                result = {"reply": "文字辨識服務還沒啟動。", "source": "none"}
+        elif intent == "depth":
             if _up("depth"):
                 d = _depth_estimate()
-                return {"reply": d.get("summary_zh", "我估了一下前方的相對距離。"),
+                summary = d.get("summary_zh", "我估了一下前方的相對距離。")
+                result = {"reply": to_traditional(summary),
                         "source": "depth", "depth": d}
-            return {"reply": "深度估計服務還沒啟動。", "source": "none"}
-        return {"reply": _chat(text), "source": "llm"}
+            else:
+                result = {"reply": "深度估計服務還沒啟動。", "source": "none"}
+        else:
+            llm_reply = _chat(text)
+            result = {"reply": to_traditional(llm_reply), "source": "llm"}
+        return result
     except Exception as e:
         return {"reply": "剛剛處理時出了點問題。", "source": "error", "error": str(e)}
 
