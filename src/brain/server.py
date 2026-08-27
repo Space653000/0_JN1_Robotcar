@@ -273,8 +273,51 @@ def _verify_no_hallucination(natural_desc: str, detected_labels_zh: set) -> tupl
     return is_clean, hallucinated
 
 
+def _get_position_and_distance(bbox, image_width=640, image_height=480):
+    """從 bbox 推斷位置（左/正前方/右）和距離（近/遠）。
+
+    Returns: (position, distance) 如 ("正前方", "近")
+    """
+    if not bbox or len(bbox) < 4:
+        return "正前方", "中距"
+
+    x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+    x_mid = (x1 + x2) / 2
+    y_mid = (y1 + y2) / 2
+    width = x2 - x1
+    height = y2 - y1
+
+    # 水平位置：左三分之一 / 中間 / 右三分之一
+    if x_mid < image_width / 3:
+        position = "左邊"
+    elif x_mid > image_width * 2 / 3:
+        position = "右邊"
+    else:
+        position = "正前方"
+
+    # 距離：根據物體在畫面中的佔比
+    # bbox 面積越大 → 物體離相機越近
+    bbox_area = width * height
+    frame_area = image_width * image_height
+    ratio = bbox_area / frame_area
+
+    if ratio > 0.25:  # 佔比 > 25%
+        distance = "非常近"
+    elif ratio > 0.15:  # 佔比 > 15%
+        distance = "很近"
+    elif ratio > 0.08:  # 佔比 > 8%
+        distance = "近"
+    elif ratio > 0.04:  # 佔比 > 4%
+        distance = "中距"
+    else:
+        distance = "遠"
+
+    return position, distance
+
+
 def _describe_detections_naturally(dets: list) -> dict:
     """用 qwen2.5 生成自然句子描述偵測物體（嚴格限定只用清單物體）。
+    M3-4b 升級：使用位置+距離+量詞讓句子更自然。
 
     Returns:
         {
@@ -290,39 +333,53 @@ def _describe_detections_naturally(dets: list) -> dict:
             "hallucinated": []
         }
 
-    # 构建物体清单（繁体标签）
-    obj_list = []
+    # 构建物体清单，包含位置和距离信息
+    obj_descriptions = []
     detected_labels_zh = set()
     for d in dets:
         lbl = d.get("label_zh") or d.get("label") or "物體"
         detected_labels_zh.add(lbl)
-        # 尝试用 bbox 推断位置（640 宽度为基准）
         bbox = d.get("bbox", [])
-        if bbox:
-            x_mid = (bbox[0] + bbox[2]) / 2 if len(bbox) >= 3 else 320
-            if x_mid < 213:  # 左三分之一
-                obj_list.append(f"{lbl}（左邊）")
-            elif x_mid > 427:  # 右三分之一
-                obj_list.append(f"{lbl}（右邊）")
-            else:  # 中间
-                obj_list.append(f"{lbl}（中間）")
+
+        # 推斷位置和距离
+        position, distance = _get_position_and_distance(bbox)
+
+        # 根據物體類型選擇量詞
+        if lbl in ["人", "狗", "貓", "馬", "牛"]:
+            quantifier = "一個"
+        elif lbl in ["桌子", "椅子", "床", "沙發", "冰箱", "微波爐", "電視", "電腦"]:
+            quantifier = "一台" if lbl == "電視" or lbl == "電腦" else "一個"
+        elif lbl in ["瓶子", "杯子", "碗", "盤子"]:
+            quantifier = "一個"
         else:
-            obj_list.append(lbl)
+            quantifier = "一個"
 
-    # 严格的 prompt，禁止幻觉
-    obj_str = "、".join(obj_list)
-    prompt = f"""以下是相機此刻真實偵測到的物體（只有這些）：{obj_str}。
+        obj_descriptions.append({
+            "label": lbl,
+            "position": position,
+            "distance": distance,
+            "quantifier": quantifier,
+            "desc": f"{lbl}（{quantifier}，位置：{position}，距離：{distance}）"
+        })
 
-用自然口語繁體中文一句話描述。規則：
-1. 只能提到上面清單裡的物體
-2. 絕對不能加入清單沒有的任何東西
-3. 可以用「左邊」「右邊」「中間」等位置描述讓句子更自然
-4. 如果清單為空，說「我前面沒看到明確的東西」
+    # 构建详细的 prompt，要求更自然的语言
+    obj_str = "、".join([o["desc"] for o in obj_descriptions])
 
-生成的句子："""
+    prompt = f"""你是機器人的眼睛。相機真實偵測到：{obj_str}。
+
+用自然口語繁體中文一句話講你看到什麼，像跟朋友聊天一樣自然。用量詞（一個人、一台電視）、講出位置（正前方、左邊、右邊）和大概距離感。
+
+嚴格規則：
+1. 只能講清單裡的物體
+2. 絕對不能加任何清單沒有的東西
+3. 多個物體要通順組合（例：「我看到一個人在正前方，右邊還有一個瓶子」）
+4. 清單空就說「我前面沒看到明確的東西」
+5. 不要說「YOLO偵測」或「邊界框」這類技術詞彙
+
+生成的自然句子："""
 
     try:
-        # 调用 LLM，remember=False 以避免污染对话记忆
+        # 调用 LLM
         resp = requests.post(
             f"{OLLAMA}/api/chat",
             json={
