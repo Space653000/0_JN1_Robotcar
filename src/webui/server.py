@@ -19,15 +19,22 @@ import io
 import time
 import requests
 import logging
+import base64
 from datetime import datetime
 from typing import Optional, Dict, List, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# HTTP Basic Auth 認證
+WEBUI_USER = os.environ.get("WEBUI_USER", "")
+WEBUI_PASS = os.environ.get("WEBUI_PASS", "")
+AUTH_ENABLED = bool(WEBUI_USER and WEBUI_PASS)
 
 # 外部服務 URL（容器內 DNS）
 BRAIN_URL = os.environ.get("BRAIN_URL", "http://brain:8000")
@@ -37,6 +44,45 @@ TTS_URL = os.environ.get("TTS_URL", "http://tts:8000")
 VISION_URL = os.environ.get("VISION_URL", "http://vision:8000")
 
 app = FastAPI(title="robotcar-webui", version="2.0.0")
+
+# HTTP Basic Auth 中間件
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not AUTH_ENABLED:
+            return await call_next(request)
+
+        # 某些端點不需要驗證
+        public_paths = ["/health"]
+        if request.url.path in public_paths:
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Basic "):
+            return JSONResponse(
+                {"error": "Unauthorized"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Basic realm=\"WebUI\""}
+            )
+
+        try:
+            encoded = auth_header[6:]  # 去掉 "Basic " 前綴
+            decoded = base64.b64decode(encoded).decode("utf-8")
+            username, password = decoded.split(":", 1)
+
+            if username == WEBUI_USER and password == WEBUI_PASS:
+                return await call_next(request)
+        except Exception:
+            pass
+
+        return JSONResponse(
+            {"error": "Invalid credentials"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Basic realm=\"WebUI\""}
+        )
+
+if AUTH_ENABLED:
+    app.add_middleware(BasicAuthMiddleware)
+    logger.info(f"[webui] HTTP Basic Auth 已啟用 (user: {WEBUI_USER})")
 
 
 class DialogMessage(BaseModel):

@@ -169,5 +169,7 @@ services:
       - ASR_URL=http://asr:8000
       - TTS_URL=http://tts:8000
       - VISION_URL=http://vision:8000
+      - WEBUI_USER=${WEBUI_USER}
+      - WEBUI_PASS=${WEBUI_PASS}
     depends_on: [brain, perception]
     restart: unless-stopped
