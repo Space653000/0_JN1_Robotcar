@@ -15,12 +15,17 @@ Backwards compatible with the M1 asr(/listen)+tts(/say) contract.
 """
 import os
 import re
+import time
+import logging
+import threading
 from collections import deque
 
 import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
 from opencc import OpenCC
+
+logger = logging.getLogger(__name__)
 
 OLLAMA = os.environ.get("OLLAMA_URL", "http://ollama-new:11434")
 LLM = os.environ.get("LLM_MODEL", "qwen2.5:3b")
@@ -60,6 +65,7 @@ SYS = ("你是一台機器車上的語音助理。用繁體中文、口語、簡
 
 app = FastAPI(title="robotcar-brain", version="2.0.0")
 _memory = deque(maxlen=MEM_TURNS * 2)
+_llm_lock = threading.Lock()  # M3-5b：序列化 LLM 呼叫，避免並發競爭
 
 FAQ_PATTERNS = [
     ("faq_name",    r"你(叫|是)什麼(名字)?|你的名字(是什麼)?|你是誰"),
@@ -157,19 +163,31 @@ def _up(name: str) -> bool:
 
 
 def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
-    msgs = [{"role": "system", "content": system}]
-    msgs.extend(_memory)
-    msgs.append({"role": "user", "content": user})
-    r = requests.post(f"{OLLAMA}/api/chat",
-                      json={"model": LLM, "stream": False, "messages": msgs,
-                            "options": {"num_ctx": NUM_CTX}},
-                      timeout=HTTP_TIMEOUT)
-    r.raise_for_status()
-    out = r.json()["message"]["content"].strip()
-    if remember:
-        _memory.append({"role": "user", "content": user})
-        _memory.append({"role": "assistant", "content": out})
-    return out
+    # M3-5b：序列化 LLM 呼叫（避免並發打架）+ 重試機制
+    with _llm_lock:
+        msgs = [{"role": "system", "content": system}]
+        msgs.extend(_memory)
+        msgs.append({"role": "user", "content": user})
+
+        for attempt in range(2):
+            try:
+                r = requests.post(f"{OLLAMA}/api/chat",
+                                json={"model": LLM, "stream": False, "messages": msgs,
+                                      "options": {"num_ctx": NUM_CTX}},
+                                timeout=30)  # 縮短 timeout 至 30s
+                r.raise_for_status()
+                out = r.json()["message"]["content"].strip()
+                if remember:
+                    _memory.append({"role": "user", "content": user})
+                    _memory.append({"role": "assistant", "content": out})
+                return out
+            except requests.Timeout:
+                if attempt == 0:
+                    logger.warning(f"LLM timeout, retrying... (attempt {attempt+1}/2)")
+                    time.sleep(0.5)
+                else:
+                    raise
+    return ""
 
 
 def _speak(text: str):
@@ -203,16 +221,25 @@ def _vlm_capture(prompt=None):
 
 def _translate_vlm_to_zh(english_desc: str) -> str:
     """Translate English VLM description to Traditional Chinese via qwen2.5:3b.
-    Uses explicit prompt to ensure Taiwan Traditional Chinese output."""
+    Uses explicit prompt to ensure Taiwan Traditional Chinese output.
+    M3-5b：使用 lock 序列化。"""
     try:
         prompt = f"翻譯成繁體中文（台灣用語），一句自然的話，不要清單。英文：{english_desc}"
-        r = requests.post(f"{OLLAMA}/api/chat",
-                          json={"model": LLM, "stream": False,
-                                "messages": [{"role": "user", "content": prompt}]},
-                          timeout=HTTP_TIMEOUT)
-        r.raise_for_status()
-        zh_desc = r.json()["message"]["content"].strip()
-        return to_traditional(zh_desc)
+        with _llm_lock:
+            for attempt in range(2):
+                try:
+                    r = requests.post(f"{OLLAMA}/api/chat",
+                                      json={"model": LLM, "stream": False,
+                                            "messages": [{"role": "user", "content": prompt}]},
+                                      timeout=30)
+                    r.raise_for_status()
+                    zh_desc = r.json()["message"]["content"].strip()
+                    return to_traditional(zh_desc)
+                except requests.Timeout:
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
     except Exception as e:
         return f"[翻譯失敗: {str(e)[:30]}]"
 
@@ -318,6 +345,7 @@ def _get_position_and_distance(bbox, image_width=640, image_height=480):
 def _describe_detections_naturally(dets: list) -> dict:
     """用 qwen2.5 生成自然句子描述偵測物體（嚴格限定只用清單物體）。
     M3-4b 升級：使用位置+距離+量詞讓句子更自然。
+    M3-5b 升級：使用 _llm_lock 序列化，避免並發競爭。
 
     Returns:
         {
@@ -379,31 +407,39 @@ def _describe_detections_naturally(dets: list) -> dict:
 生成的自然句子："""
 
     try:
-        # 调用 LLM
-        resp = requests.post(
-            f"{OLLAMA}/api/chat",
-            json={
-                "model": LLM,
-                "stream": False,
-                "messages": [{"role": "user", "content": prompt}],
-                "options": {"num_ctx": NUM_CTX}
-            },
-            timeout=HTTP_TIMEOUT
-        )
-        resp.raise_for_status()
-        natural_desc = resp.json()["message"]["content"].strip()
+        # M3-5b：序列化 LLM 呼叫（使用 lock + 重試）
+        with _llm_lock:
+            for attempt in range(2):
+                try:
+                    resp = requests.post(
+                        f"{OLLAMA}/api/chat",
+                        json={
+                            "model": LLM,
+                            "stream": False,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "options": {"num_ctx": NUM_CTX}
+                        },
+                        timeout=30
+                    )
+                    resp.raise_for_status()
+                    natural_desc = resp.json()["message"]["content"].strip()
 
-        # 转换为繁体
-        natural_desc = _cc.convert(natural_desc)
+                    # 转换为繁体
+                    natural_desc = _cc.convert(natural_desc)
 
-        # 防幻觉验证
-        is_clean, hallucinated = _verify_no_hallucination(natural_desc, detected_labels_zh)
+                    # 防幻觉验证
+                    is_clean, hallucinated = _verify_no_hallucination(natural_desc, detected_labels_zh)
 
-        return {
-            "reply": natural_desc,
-            "is_clean": is_clean,
-            "hallucinated": hallucinated
-        }
+                    return {
+                        "reply": natural_desc,
+                        "is_clean": is_clean,
+                        "hallucinated": hallucinated
+                    }
+                except requests.Timeout:
+                    if attempt == 0:
+                        time.sleep(0.5)
+                    else:
+                        raise
     except Exception as e:
         # M3-4c：記錄真正的錯誤，便於診斷
         logger.error(f"自然句生成失敗（_describe_detections_naturally）: {type(e).__name__}: {str(e)}")
