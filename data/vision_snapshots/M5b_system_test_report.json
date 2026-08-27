@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-08-27T21:31:09.206988",
+  "results": {
+    "health": false,
+    "webui_endpoints": true,
+    "quick_actions": true,
+    "dialog_flow": false,
+    "memory": true,
+    "hallucination_guard": true
+  },
+  "performance": {
+    "quick_actions_avg_ms": 6593.04126103719,
+    "dialog_avg_ms": 3993.030786514282
+  },
+  "memory_test": [
+    {
+      "query": "你好",
+      "intent": "chat",
+      "reply": "你好嘅，有事嗎？",
+      "elapsed_ms": 4468.073129653931
+    },
+    {
+      "query": "前面有什麼",
+      "intent": "state",
+      "reply": "我前面沒看到明確的東西。",
+      "elapsed_ms": 4592.926979064941
+    },
+    {
+      "query": "你是誰",
+      "intent": "faq_name",
+      "reply": "我是 JN1,你的機器人車語音助理。",
+      "elapsed_ms": 6911.123037338257
+    }
+  ],
+  "summary": "4/6 tests passed"
+}
