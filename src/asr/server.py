@@ -43,28 +43,46 @@ def _load():
     if _model is not None:
         return
     if ENGINE == "sensevoice":
+        # M8b-1: 優先使用 Sherpa-ONNX 的預匯出 SenseVoice ONNX
         try:
-            print(f"[asr] Attempting to load SenseVoice...", flush=True)
-            from funasr_onnx import SenseVoiceSmall
-            model_dir = os.environ.get("SENSEVOICE_DIR", "iic/SenseVoiceSmall")
-            print(f"[asr] Model dir: {model_dir}", flush=True)
-            if not os.path.isdir(model_dir):
-                print(f"[asr] Downloading SenseVoice model...", flush=True)
-                from modelscope import snapshot_download
-                model_dir = snapshot_download(model_dir)
-                print(f"[asr] Downloaded to: {model_dir}", flush=True)
-            print(f"[asr] Initializing SenseVoiceSmall...", flush=True)
-            _model = ("sensevoice", SenseVoiceSmall(model_dir, batch_size=1, quantize=True))
-            print(f"[asr] SenseVoice loaded successfully!", flush=True)
+            print(f"[asr] Attempting to load SenseVoice via sherpa-onnx (pre-exported ONNX)...", flush=True)
+            import sherpa_onnx
+
+            # 下載預匯出的 SenseVoice ONNX 模型
+            model_name = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue"
+            print(f"[asr] Loading pre-exported model: {model_name}", flush=True)
+
+            recognizer = sherpa_onnx.OfflineRecognizer.from_pretrained(
+                model_name,
+                provider="cuda",  # 嘗試 GPU
+            )
+            print(f"[asr] SenseVoice (sherpa-onnx) loaded successfully!", flush=True)
+            _model = ("sensevoice", recognizer)
             return
         except BaseException as e:
-            # M8-1: 捕捉所有異常（包括非 Exception 派生的異常）
-            import traceback
-            print(f"[asr] SenseVoice load failed: {type(e).__name__}: {e}", flush=True)
-            print(f"[asr] Traceback:", flush=True)
-            traceback.print_exc()
-            print(f"[asr] Falling back to Whisper", flush=True)
-            ENGINE = "whisper"
+            # 若 sherpa-onnx 失敗，嘗試原始 FunASR_ONNX
+            print(f"[asr] Sherpa-ONNX failed: {type(e).__name__}: {e}", flush=True)
+            print(f"[asr] Falling back to FunASR_ONNX...", flush=True)
+
+            try:
+                from funasr_onnx import SenseVoiceSmall
+                model_dir = os.environ.get("SENSEVOICE_DIR", "iic/SenseVoiceSmall")
+                print(f"[asr] Model dir: {model_dir}", flush=True)
+                if not os.path.isdir(model_dir):
+                    print(f"[asr] Downloading SenseVoice model...", flush=True)
+                    from modelscope import snapshot_download
+                    model_dir = snapshot_download(model_dir)
+                    print(f"[asr] Downloaded to: {model_dir}", flush=True)
+                print(f"[asr] Initializing SenseVoiceSmall...", flush=True)
+                _model = ("sensevoice", SenseVoiceSmall(model_dir, batch_size=1, quantize=True))
+                print(f"[asr] SenseVoice (funasr-onnx) loaded successfully!", flush=True)
+                return
+            except BaseException as e2:
+                import traceback
+                print(f"[asr] FunASR_ONNX also failed: {type(e2).__name__}: {e2}", flush=True)
+                traceback.print_exc()
+                print(f"[asr] Falling back to Whisper", flush=True)
+                ENGINE = "whisper"
     from faster_whisper import WhisperModel
     # M3-6b：嘗試 GPU 加速（device=cuda, compute_type=float16）；若記憶體不足則降級
     device = os.environ.get("ASR_DEVICE", "auto")  # auto | cpu | cuda
@@ -95,10 +113,29 @@ def _transcribe(path: str) -> str:
     _load()
     kind, m = _model
     if kind == "sensevoice":
-        res = m(path, language=LANG, use_itn=True)
-        item = res[0] if isinstance(res, (list, tuple)) and res else res
-        txt = item["text"] if isinstance(item, dict) else str(item)
-        return _apply_hotwords(_clean(txt))
+        # M8b-1: 支持 sherpa-onnx 和 funasr-onnx 兩種 API
+        try:
+            # 嘗試 sherpa-onnx API
+            if hasattr(m, 'recognize_file'):
+                # Sherpa-ONNX API
+                result = m.recognize_file(path)
+                txt = result.text if hasattr(result, 'text') else str(result)
+                return _apply_hotwords(_clean(txt))
+            else:
+                # FunASR_ONNX API
+                res = m(path, language=LANG, use_itn=True)
+                item = res[0] if isinstance(res, (list, tuple)) and res else res
+                txt = item["text"] if isinstance(item, dict) else str(item)
+                return _apply_hotwords(_clean(txt))
+        except Exception as e:
+            print(f"[asr] SenseVoice transcription failed: {e}", flush=True)
+            # 降級到 Whisper
+            global ENGINE
+            ENGINE = "whisper"
+            _load()
+            kind, m = _model
+
+    # Whisper 路徑
     lang = None if LANG == "auto" else LANG
     segments, _info = m.transcribe(path, language=lang, vad_filter=True,
                                    hotwords=" ".join(HOTWORDS) or None)
