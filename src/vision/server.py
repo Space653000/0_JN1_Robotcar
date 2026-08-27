@@ -8,15 +8,28 @@ VLM_MODEL = os.environ.get("VLM_MODEL", "moondream")
 HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "180"))
 
 def _grab_jpeg_b64():
-    cap = cv2.VideoCapture(0)
+    """Get frame from perception service (single camera owner)."""
     try:
+        r = requests.get("http://perception:8000/frame.jpg", timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("ok"):
+                return data.get("frame_b64")
+    except Exception as e:
+        print(f"[vision] Failed to get frame from perception: {e}")
+
+    # Fallback: try direct camera access (only if perception is down)
+    try:
+        cap = cv2.VideoCapture(0)
         ok, frame = cap.read()
-    finally:
         cap.release()
-    if not ok or frame is None:
-        return None
-    ok, buf = cv2.imencode(".jpg", frame)
-    return base64.b64encode(buf).decode() if ok else None
+        if ok and frame is not None:
+            ok, buf = cv2.imencode(".jpg", frame)
+            return base64.b64encode(buf).decode() if ok else None
+    except Exception as e:
+        print(f"[vision] Direct camera access failed: {e}")
+
+    return None
 
 @app.get("/health")
 def health():

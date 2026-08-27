@@ -61,6 +61,14 @@ services:
   perception:
     build: { context: ., dockerfile: docker/perception/Dockerfile }
     image: robotcar-perception:1.0.0
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute, utility]
     environment:
       - YOLO_MODEL=${YOLO_MODEL:-yolo11n}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.5}
