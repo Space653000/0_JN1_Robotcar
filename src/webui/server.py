@@ -1,12 +1,18 @@
-"""robotcar-webui — 手機/平板區網控制介面
+"""robotcar-webui v2 — 完整代理能力展現
 
-功能：
-- 即時相機畫面
-- 視覺偵測結果
-- 打字對話
-- 服務狀態監控
+功能對應（自建代理路由）：
+  faq_name/ability/battery/where → FAQ 快捷按鈕
+  state                          → 「前面有什麼」 (看鏡頭偵測)
+  ocr                            → 「唸出來」 (讀字/OCR)
+  describe                       → 「仔細描述」 (VLM 詳細分析)
+  depth                          → 「多遠」 (距離估算)
+  referent                       → 「代詞解析」 (那是什麼)
+  chat                           → 自由對話
 
-架構：WebUI 在容器內代理外部服務（brain、perception），前端只連 webui 一個入口
+記憶管理：
+  - 8 輪對話記憶 (MEM_TURNS=8)
+  - 代詞解析 (_last_objects, _last_location)
+  - 防幻覺檢查 (YOLO 80 classes)
 """
 import os
 import io
@@ -14,29 +20,33 @@ import time
 import requests
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# 外部服務 URL（容器內DNS）
+# 外部服務 URL（容器內 DNS）
 BRAIN_URL = os.environ.get("BRAIN_URL", "http://brain:8000")
 PERCEPTION_URL = os.environ.get("PERCEPTION_URL", "http://perception:8000")
 ASR_URL = os.environ.get("ASR_URL", "http://asr:8000")
 TTS_URL = os.environ.get("TTS_URL", "http://tts:8000")
 VISION_URL = os.environ.get("VISION_URL", "http://vision:8000")
 
-app = FastAPI(title="robotcar-webui", version="1.0.0")
+app = FastAPI(title="robotcar-webui", version="2.0.0")
 
 
 class DialogMessage(BaseModel):
     """對話消息"""
     text: str
+
+
+class QuickAction(BaseModel):
+    """快捷功能"""
+    action: str  # faq_name / state / ocr / describe / depth / referent / chat
 
 
 # ============================================================================
@@ -114,6 +124,47 @@ async def ask_brain(msg: DialogMessage):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@app.post("/api/quick-action")
+async def quick_action(action: QuickAction):
+    """快捷功能（一鍵觸發）"""
+    action_map = {
+        "faq_name": "你叫什麼",
+        "faq_ability": "你會做什麼",
+        "faq_battery": "電池剩多少",
+        "faq_where": "你在哪裡",
+        "state": "前面有什麼",
+        "ocr": "上面寫什麼",
+        "describe": "仔細描述一下",
+        "depth": "這個有多遠",
+        "referent": "那是什麼",
+        "recall": "我剛剛說什麼",
+    }
+
+    if action.action not in action_map:
+        return JSONResponse({"error": f"未知快捷功能: {action.action}"}, status_code=400)
+
+    trigger_text = action_map[action.action]
+
+    try:
+        r = requests.post(
+            f"{BRAIN_URL}/ask",
+            json={"text": trigger_text},
+            timeout=30
+        )
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "reply": data.get("reply", ""),
+            "intent": data.get("intent", ""),
+            "action": action.action,
+            "trigger_text": trigger_text,
+            "ok": data.get("ok", False),
+        }
+    except Exception as e:
+        logger.error(f"快捷功能失敗: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 # ============================================================================
 # 前端HTML（單頁應用）
 # ============================================================================
@@ -134,10 +185,9 @@ HTML_TEMPLATE = """
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'PingFang TC', sans-serif;
-            background-color: #1a1a1a;
+            background-color: #0a0a0a;
             color: #e0e0e0;
             line-height: 1.5;
-            padding: 0;
         }
 
         .container {
@@ -150,7 +200,7 @@ HTML_TEMPLATE = """
 
         /* 頭部 */
         .header {
-            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
             border-bottom: 2px solid #333;
             padding: 12px 16px;
             display: flex;
@@ -160,7 +210,7 @@ HTML_TEMPLATE = """
         }
 
         .header h1 {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
             letter-spacing: 1px;
         }
@@ -168,27 +218,26 @@ HTML_TEMPLATE = """
         .status-bar {
             display: flex;
             gap: 8px;
+        }
+
+        .status-item {
+            display: flex;
             align-items: center;
+            gap: 4px;
+            font-size: 11px;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background-color: #444;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
         }
 
         .status-dot.online {
             background-color: #4ade80;
-            box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
-        }
-
-        .status-label {
-            font-size: 12px;
-            color: #aaa;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
         }
 
         /* 主內容 */
@@ -196,36 +245,32 @@ HTML_TEMPLATE = """
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding: 12px;
+            gap: 10px;
+            padding: 10px;
             overflow-y: auto;
             overflow-x: hidden;
         }
 
-        /* 即時畫面區塊 */
         .section {
-            background-color: #0a0a0a;
+            background-color: #1a1a1a;
             border: 1px solid #333;
-            border-radius: 8px;
-            padding: 12px;
+            border-radius: 6px;
+            padding: 10px;
             flex-shrink: 0;
         }
 
         .section-title {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #aaa;
+            letter-spacing: 0.5px;
+            color: #888;
             margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
+        /* 相機區域 */
         .camera-container {
             width: 100%;
-            max-width: 100%;
             aspect-ratio: 4/3;
             background: #000;
             border: 1px solid #222;
@@ -242,40 +287,64 @@ HTML_TEMPLATE = """
             object-fit: contain;
         }
 
-        .camera-loading {
-            color: #666;
-            font-size: 12px;
-            animation: pulse 1.5s infinite;
+        /* 快捷按鈕 */
+        .quick-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+            gap: 6px;
+            margin-bottom: 8px;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
+        .btn-quick {
+            padding: 6px 8px;
+            background-color: #1e3a8a;
+            color: white;
+            border: 1px solid #1e40af;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        .btn-quick:hover {
+            background-color: #1e40af;
+            box-shadow: 0 0 8px rgba(30, 64, 175, 0.4);
+        }
+
+        .btn-quick:active {
+            transform: scale(0.95);
+        }
+
+        .btn-quick.loading {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         /* 偵測結果 */
         .detections {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-            gap: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
         }
 
         .detection-tag {
-            background-color: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 4px;
-            padding: 6px 8px;
+            background-color: #0f1a2a;
+            border: 1px solid #2a4a6a;
+            border-radius: 12px;
+            padding: 4px 8px;
             font-size: 11px;
-            text-align: center;
             color: #4ade80;
-            word-break: break-word;
         }
 
-        /* 對話框 */
+        /* 對話區域 */
         .dialog-section {
             display: flex;
             flex-direction: column;
-            max-height: 300px;
+            flex: 1;
+            min-height: 200px;
         }
 
         .dialog-history {
@@ -286,22 +355,22 @@ HTML_TEMPLATE = """
             flex-direction: column;
             gap: 6px;
             padding: 8px;
-            background-color: #000;
-            border-radius: 4px;
+            background-color: #0f0f0f;
             border: 1px solid #222;
+            border-radius: 4px;
             font-size: 12px;
         }
 
         .dialog-message {
             padding: 6px 8px;
             border-radius: 4px;
-            max-width: 90%;
+            max-width: 85%;
             word-wrap: break-word;
         }
 
         .dialog-message.user {
             align-self: flex-end;
-            background-color: #1e4620;
+            background-color: #1a3a1a;
             color: #4ade80;
             border-left: 2px solid #4ade80;
         }
@@ -313,6 +382,15 @@ HTML_TEMPLATE = """
             border-left: 2px solid #60a5fa;
         }
 
+        .dialog-message.intent {
+            align-self: center;
+            font-size: 10px;
+            color: #aaa;
+            background-color: #2a2a2a;
+            border: none;
+            padding: 3px 6px;
+        }
+
         .dialog-input-group {
             display: flex;
             gap: 6px;
@@ -320,23 +398,22 @@ HTML_TEMPLATE = """
 
         .dialog-input {
             flex: 1;
-            padding: 8px 10px;
+            padding: 8px;
             background-color: #1a1a1a;
             border: 1px solid #333;
             border-radius: 4px;
             color: #e0e0e0;
             font-size: 14px;
-            font-family: inherit;
         }
 
         .dialog-input:focus {
             outline: none;
             border-color: #60a5fa;
-            box-shadow: 0 0 4px rgba(96, 165, 250, 0.3);
+            box-shadow: 0 0 4px rgba(96, 165, 250, 0.2);
         }
 
         .btn {
-            padding: 8px 14px;
+            padding: 8px 12px;
             background-color: #1e40af;
             color: white;
             border: none;
@@ -344,9 +421,6 @@ HTML_TEMPLATE = """
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
             white-space: nowrap;
         }
 
@@ -358,55 +432,32 @@ HTML_TEMPLATE = """
             transform: scale(0.95);
         }
 
-        .btn-secondary {
-            background-color: #374151;
+        .btn.loading {
+            opacity: 0.6;
         }
 
-        .btn-secondary:hover {
-            background-color: #4b5563;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid #333;
-            border-top: 2px solid #60a5fa;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* 響應式設計 */
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 16px;
-            }
-
+        /* 響應式 */
+        @media (max-width: 640px) {
             .main {
-                gap: 10px;
-                padding: 10px;
+                gap: 8px;
+                padding: 8px;
             }
 
             .section {
-                padding: 10px;
+                padding: 8px;
+            }
+
+            .quick-buttons {
+                grid-template-columns: repeat(5, 1fr);
             }
 
             .camera-container {
                 aspect-ratio: 16/9;
             }
 
-            .dialog-history {
-                max-height: 200px;
+            input, textarea, select {
+                font-size: 16px !important;
             }
-        }
-
-        /* 防止 iOS 自動放大 */
-        input, textarea, select {
-            font-size: 16px !important;
         }
     </style>
 </head>
@@ -415,38 +466,43 @@ HTML_TEMPLATE = """
         <!-- 頭部 -->
         <div class="header">
             <h1>🤖 JN1 機器車</h1>
-            <div class="status-bar" id="statusBar">
-                <!-- 動態填充 -->
-            </div>
+            <div class="status-bar" id="statusBar"></div>
         </div>
 
         <!-- 主內容 -->
         <div class="main">
-            <!-- 即時畫面 -->
+            <!-- 相機區域 -->
             <div class="section">
-                <div class="section-title">
-                    📹 即時畫面
-                    <span style="font-size: 10px; color: #666;">每秒更新</span>
-                </div>
+                <div class="section-title">📹 即時畫面</div>
                 <div class="camera-container" id="cameraContainer">
-                    <div class="camera-loading">載入中...</div>
+                    <div style="color: #666; font-size: 12px;">載入中...</div>
+                </div>
+            </div>
+
+            <!-- 快捷功能 -->
+            <div class="section">
+                <div class="section-title">⚡ 快捷功能</div>
+                <div class="quick-buttons">
+                    <button class="btn-quick" data-action="state" title="自動判斷是否有人/物體">前面有什麼</button>
+                    <button class="btn-quick" data-action="ocr" title="OCR 讀字">唸出來</button>
+                    <button class="btn-quick" data-action="describe" title="VLM 詳細分析">仔細描述</button>
+                    <button class="btn-quick" data-action="faq_name" title="自我介紹">你叫什麼</button>
+                    <button class="btn-quick" data-action="faq_ability" title="能力介紹">你會做什麼</button>
+                    <button class="btn-quick" data-action="recall" title="記憶回想">剛剛說啥</button>
                 </div>
             </div>
 
             <!-- 偵測結果 -->
             <div class="section">
-                <div class="section-title">
-                    👁️ 偵測結果
-                    <button class="btn btn-secondary" id="refreshDetectionsBtn" style="padding: 4px 8px; font-size: 11px;">重新掃描</button>
-                </div>
+                <div class="section-title">👁️ 偵測結果</div>
                 <div class="detections" id="detections">
                     <div style="color: #666; font-size: 12px;">等待中...</div>
                 </div>
             </div>
 
-            <!-- 對話 -->
+            <!-- 對話區域 -->
             <div class="section dialog-section">
-                <div class="section-title">💬 對話</div>
+                <div class="section-title">💬 對話（代理全路由）</div>
                 <div class="dialog-history" id="dialogHistory"></div>
                 <div class="dialog-input-group">
                     <input
@@ -454,7 +510,6 @@ HTML_TEMPLATE = """
                         class="dialog-input"
                         id="dialogInput"
                         placeholder="輸入指令..."
-                        @keyup.enter="sendMessage"
                     />
                     <button class="btn" id="sendBtn">送出</button>
                 </div>
@@ -463,27 +518,26 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        // 全域狀態
         const state = {
             health: {},
-            dialogHistory: [],
             isLoading: false,
         };
 
-        // 初始化
         window.addEventListener('DOMContentLoaded', () => {
             initApp();
         });
 
         async function initApp() {
-            console.log('初始化 WebUI...');
-
-            // 綁定事件
+            // 事件綁定
             document.getElementById('sendBtn').addEventListener('click', sendMessage);
             document.getElementById('dialogInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') sendMessage();
             });
-            document.getElementById('refreshDetectionsBtn').addEventListener('click', updateDetections);
+
+            // 快捷按鈕
+            document.querySelectorAll('.btn-quick').forEach(btn => {
+                btn.addEventListener('click', () => quickAction(btn.dataset.action));
+            });
 
             // 定時更新
             updateHealth();
@@ -495,7 +549,7 @@ HTML_TEMPLATE = """
             setInterval(updateDetections, 10000);
         }
 
-        // 更新健康狀態
+        // 健康檢查
         async function updateHealth() {
             try {
                 const res = await fetch('/api/health');
@@ -515,35 +569,32 @@ HTML_TEMPLATE = """
                 { name: '語音', key: 'asr' },
                 { name: '視覺', key: 'perception' },
                 { name: '大腦', key: 'brain' },
+                { name: '文字', key: 'vision' },
             ];
 
             services.forEach(svc => {
                 const isOnline = state.health[svc.key] === 'online';
+                const item = document.createElement('div');
+                item.className = 'status-item';
+
                 const dot = document.createElement('div');
                 dot.className = `status-dot ${isOnline ? 'online' : ''}`;
-                dot.title = `${svc.name}: ${isOnline ? '線上' : '離線'}`;
 
                 const label = document.createElement('span');
-                label.className = 'status-label';
                 label.textContent = svc.name;
 
-                const container = document.createElement('div');
-                container.style.display = 'flex';
-                container.style.alignItems = 'center';
-                container.style.gap = '4px';
-                container.appendChild(dot);
-                container.appendChild(label);
-
-                bar.appendChild(container);
+                item.appendChild(dot);
+                item.appendChild(label);
+                bar.appendChild(item);
             });
         }
 
-        // 更新相機畫面
+        // 即時畫面
         async function updateFrame() {
             try {
                 const container = document.getElementById('cameraContainer');
                 const img = container.querySelector('img') || document.createElement('img');
-                img.src = '/api/frame?t=' + Date.now(); // 防快取
+                img.src = '/api/frame?t=' + Date.now();
                 if (!container.querySelector('img')) {
                     container.innerHTML = '';
                     container.appendChild(img);
@@ -553,7 +604,7 @@ HTML_TEMPLATE = """
             }
         }
 
-        // 更新偵測結果
+        // 偵測結果
         async function updateDetections() {
             try {
                 const res = await fetch('/api/perception/state');
@@ -564,14 +615,13 @@ HTML_TEMPLATE = """
                 container.innerHTML = '';
 
                 if (detections.length === 0) {
-                    container.innerHTML = '<div style="color: #666; font-size: 12px;">目前沒有偵測到物體</div>';
+                    container.innerHTML = '<div style="color: #666; font-size: 12px;">目前沒有偵測</div>';
                     return;
                 }
 
-                // 去重並計數
                 const counts = {};
                 detections.forEach(det => {
-                    const cls = det.class || '未知';
+                    const cls = det.label_zh || det.label || '未知';
                     counts[cls] = (counts[cls] || 0) + 1;
                 });
 
@@ -586,6 +636,38 @@ HTML_TEMPLATE = """
             }
         }
 
+        // 快捷功能
+        async function quickAction(action) {
+            if (state.isLoading) return;
+
+            const btn = document.querySelector(`[data-action="${action}"]`);
+            btn.classList.add('loading');
+            btn.disabled = true;
+            state.isLoading = true;
+
+            try {
+                const res = await fetch('/api/quick-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action }),
+                });
+
+                const data = await res.json();
+                const reply = data.reply || '(無回應)';
+                const intent = data.intent || '?';
+
+                addDialogMessage('intent', `[${intent}] ${data.trigger_text}`);
+                addDialogMessage('bot', reply);
+            } catch (e) {
+                console.error('快捷功能失敗:', e);
+                addDialogMessage('bot', '⚠️ 執行失敗');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                state.isLoading = false;
+            }
+        }
+
         // 送出訊息
         async function sendMessage() {
             const input = document.getElementById('dialogInput');
@@ -593,7 +675,6 @@ HTML_TEMPLATE = """
 
             if (!text || state.isLoading) return;
 
-            // 顯示使用者訊息
             addDialogMessage('user', text);
             input.value = '';
 
@@ -609,10 +690,13 @@ HTML_TEMPLATE = """
 
                 const data = await res.json();
                 const reply = data.reply || '(無回應)';
+                const intent = data.intent || '?';
+
+                addDialogMessage('intent', `[${intent}]`);
                 addDialogMessage('bot', reply);
             } catch (e) {
                 console.error('對話失敗:', e);
-                addDialogMessage('bot', '⚠️ 連線失敗，請重試');
+                addDialogMessage('bot', '⚠️ 連線失敗');
             } finally {
                 state.isLoading = false;
                 document.getElementById('sendBtn').disabled = false;
@@ -628,11 +712,6 @@ HTML_TEMPLATE = """
             history.appendChild(msg);
             history.scrollTop = history.scrollHeight;
         }
-
-        // 頁面卸載時通知
-        window.addEventListener('beforeunload', () => {
-            console.log('WebUI 關閉');
-        });
     </script>
 </body>
 </html>
@@ -648,7 +727,7 @@ async def root():
 @app.get("/health")
 async def webui_health():
     """WebUI 自身健康檢查"""
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "2.0.0"}
 
 
 if __name__ == "__main__":
