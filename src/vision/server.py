@@ -23,10 +23,10 @@ def health():
     return {"ok": True, "mode": "vision-vlm (real-time VLM inference)", "vlm_model": VLM_MODEL}
 
 @app.post("/capture")
-def capture(prompt: str = "Describe this scene briefly."):
+def capture(prompt: str = "Describe this scene briefly in one sentence, list main objects."):
     """Grab camera frame + real VLM inference via ollama (moondream).
-    Fallback to scene inference via LLM if VLM fails.
-    Note: VLM may output in English; brain layer converts to Traditional Chinese."""
+    Returns English description; brain layer handles translation to Traditional Chinese.
+    Note: prompt should be concise English; VLM output is English for translation."""
     img = _grab_jpeg_b64()
     if img is None:
         return {"ok": False, "error": "camera read failed"}
@@ -59,6 +59,7 @@ def capture(prompt: str = "Describe this scene briefly."):
                 "ok": True,
                 "image_b64": img,
                 "description": description,
+                "description_lang": "en",
                 "vlm_model": VLM_MODEL,
                 "source": "ollama-vlm"
             }

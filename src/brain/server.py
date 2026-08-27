@@ -187,6 +187,22 @@ def _vlm_capture(prompt=None):
         return {"ok": False, "error": str(e)[:100]}
 
 
+def _translate_vlm_to_zh(english_desc: str) -> str:
+    """Translate English VLM description to Traditional Chinese via qwen2.5:3b.
+    Uses explicit prompt to ensure Taiwan Traditional Chinese output."""
+    try:
+        prompt = f"翻譯成繁體中文（台灣用語），一句自然的話，不要清單。英文：{english_desc}"
+        r = requests.post(f"{OLLAMA}/api/chat",
+                          json={"model": LLM, "stream": False,
+                                "messages": [{"role": "user", "content": prompt}]},
+                          timeout=HTTP_TIMEOUT)
+        r.raise_for_status()
+        zh_desc = r.json()["message"]["content"].strip()
+        return to_traditional(zh_desc)
+    except Exception as e:
+        return f"[翻譯失敗: {str(e)[:30]}]"
+
+
 def _ocr_read():
     r = requests.post(f"{REGISTRY['ocr']['url']}/read", timeout=120)
     r.raise_for_status()
@@ -232,8 +248,16 @@ def handle_intent(intent: str, text: str) -> dict:
                 llm_desc = _chat("請簡要描述一個房間的典型場景，有哪些常見物品和環境特徵。用簡體中文回答，不要清單格式。", remember=False)
                 result = {"reply": to_traditional(llm_desc), "source": "llm-scene-desc"}
         elif intent == "describe":
-            llm_desc = _chat("請詳細描述一個房間的場景,包括環境佈置、光線、物品擺放等細節。用簡體中文回答。", remember=False)
-            result = {"reply": to_traditional(llm_desc), "source": "llm-scene-desc"}
+            if _up("vision"):
+                vlm_data = _vlm_capture("Describe this scene in detail, including objects, layout, lighting, and atmosphere. One sentence.")
+                if vlm_data.get("ok"):
+                    en_desc = vlm_data.get("description", "")
+                    zh_desc = _translate_vlm_to_zh(en_desc)
+                    result = {"reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc}
+                else:
+                    result = {"reply": "相機或視覺服務有問題。", "source": "vision-error"}
+            else:
+                result = {"reply": "視覺服務還沒啟動。", "source": "none"}
         elif intent == "ocr":
             if _up("ocr"):
                 o = _ocr_read()
@@ -306,8 +330,15 @@ def talk(seconds: int = 0):
 
 @app.post("/see")
 def see():
-    res = handle_intent("describe", "仔細描述畫面")
-    return {"ok": res["source"] != "none", **res, "tts": _speak(res["reply"])}
+    # Direct vision capture with translation for /see endpoint
+    if _up("vision"):
+        vlm_data = _vlm_capture("Describe this scene in one sentence, list main objects.")
+        if vlm_data.get("ok"):
+            en_desc = vlm_data.get("description", "")
+            zh_desc = _translate_vlm_to_zh(en_desc)
+            res = {"ok": True, "reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc, "intent": "describe"}
+            return {"ok": True, **res, "tts": _speak(res["reply"])}
+    return {"ok": False, "reply": "視覺服務不可用。", "source": "none", "tts": None}
 
 
 @app.post("/reset")
