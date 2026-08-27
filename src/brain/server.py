@@ -263,13 +263,13 @@ def _depth_estimate():
 def _fmt_state_zh(state: dict) -> str:
     dets = state.get("objects") or state.get("detections") or []
     if not dets:
-        return "目前畫面裡沒有偵測到明顯的物體。"
+        return "沒看到東西。"  # M3-6d：簡化視覺回覆（降 TTS 合成時間）
     counts = {}
     for d in dets:
         lbl = d.get("label_zh") or d.get("label") or d.get("name") or "物體"
         counts[lbl] = counts.get(lbl, 0) + 1
     parts = [f"{n}個{lbl}" if n > 1 else lbl for lbl, n in counts.items()]
-    return "我看到 " + "、".join(parts) + "。"
+    return "有 " + "、".join(parts) + "。"  # M3-6d：簡化（「我看到」→「有」）
 
 
 def _verify_no_hallucination(natural_desc: str, detected_labels_zh: set) -> tuple:
@@ -409,18 +409,16 @@ def _describe_detections_naturally(dets: list) -> dict:
     # 构建详细的 prompt，要求更自然的语言
     obj_str = "、".join([o["desc"] for o in obj_descriptions])
 
-    prompt = f"""你是機器人的眼睛。相機真實偵測到：{obj_str}。
+    # M3-6d：簡化 prompt 讓回複更短、合成更快
+    prompt = f"""簡要說明：偵測到 {obj_str}
 
-用自然口語繁體中文一句話講你看到什麼，像跟朋友聊天一樣自然。用量詞（一個人、一台電視）、講出位置（正前方、左邊、右邊）和大概距離感。
+用一句話，儘量短，說你看到什麼。只用清單裡的物體。
 
-嚴格規則：
-1. 只能講清單裡的物體
-2. 絕對不能加任何清單沒有的東西
-3. 多個物體要通順組合（例：「我看到一個人在正前方，右邊還有一個瓶子」）
-4. 清單空就說「我前面沒看到明確的東西」
-5. 不要說「YOLO偵測」或「邊界框」這類技術詞彙
+例如：
+- 「有一個人在正前方」
+- 「有一個人和一個瓶子」
 
-生成的自然句子："""
+生成的回答（儘量一句、不超過 10 字）："""
 
     try:
         # M3-5b：序列化 LLM 呼叫（使用 lock + 重試）

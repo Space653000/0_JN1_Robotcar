@@ -138,14 +138,31 @@ def health():
 
 @app.post("/say")
 def say(req: Say):
+    # M3-6d：分離計時合成和播放
+    # 優化：簡單文本（無標點）跳過分段補靜音，直接快速合成
     os.makedirs(LOGDIR, exist_ok=True)
     wav = os.path.join(LOGDIR, f"tts_{int(time.time()*1000)}.wav")
+
+    synth_start = time.time()
     try:
-        ok = _synth_with_pauses(req.text, wav)
+        # M3-6d：快速路徑——無標點或標點少的簡單文本直接合成，省去分段開銷
+        text = req.text.strip()
+        has_punctuation = any(c in text for c in "，。？！；、")
+
+        if not has_punctuation or len(text) < 10:
+            # 快速路徑：直接合成，不分段
+            ok = _synth_segment(text, wav)
+        else:
+            # 長句或多標點：分段補靜音
+            ok = _synth_with_pauses(text, wav)
     except Exception as e:
         return {"ok": False, "error": "synth failed", "detail": str(e)}
+    synth_ms = (time.time() - synth_start) * 1000
+
     if not ok:
         return {"ok": False, "error": "synth failed"}
+
+    play_start = time.time()
     played, perr = False, ""
     try:
         pr = subprocess.run(["paplay", wav], capture_output=True, text=True, timeout=60)
@@ -153,4 +170,15 @@ def say(req: Say):
         perr = pr.stderr[-300:]
     except Exception as e:
         perr = str(e)
-    return {"ok": True, "wav": wav, "engine": ENGINE, "played": played, "play_error": perr}
+    play_ms = (time.time() - play_start) * 1000
+
+    return {
+        "ok": True,
+        "wav": wav,
+        "engine": ENGINE,
+        "played": played,
+        "play_error": perr,
+        "synth_ms": synth_ms,
+        "play_ms": play_ms,
+        "total_ms": synth_ms + play_ms
+    }
