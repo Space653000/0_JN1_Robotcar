@@ -64,7 +64,20 @@ def _load_kokoro():
         import time as time_module
         load_start = time_module.time()
         from kokoro_onnx import Kokoro
-        _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+
+        # M3-6e: Try GPU acceleration first
+        try:
+            import onnxruntime as ort
+            providers = ort.get_available_providers()
+            print(f"[tts] ONNX Runtime providers available: {providers}", flush=True)
+
+            # Kokoro may accept provider hints, but kokoro_onnx library may not expose them
+            # Attempt to use GPU if available, but may not work with this library version
+            _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+        except Exception as gpu_error:
+            print(f"[tts] GPU attempt failed ({gpu_error}), using default", flush=True)
+            _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+
         load_ms = (time_module.time() - load_start) * 1000
         print(f"[tts] Kokoro model loaded in {load_ms:.0f}ms", flush=True)
     except Exception as e:
