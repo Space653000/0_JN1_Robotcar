@@ -44,15 +44,26 @@ def _load():
         return
     if ENGINE == "sensevoice":
         try:
+            print(f"[asr] Attempting to load SenseVoice...", flush=True)
             from funasr_onnx import SenseVoiceSmall
             model_dir = os.environ.get("SENSEVOICE_DIR", "iic/SenseVoiceSmall")
+            print(f"[asr] Model dir: {model_dir}", flush=True)
             if not os.path.isdir(model_dir):
+                print(f"[asr] Downloading SenseVoice model...", flush=True)
                 from modelscope import snapshot_download
                 model_dir = snapshot_download(model_dir)
+                print(f"[asr] Downloaded to: {model_dir}", flush=True)
+            print(f"[asr] Initializing SenseVoiceSmall...", flush=True)
             _model = ("sensevoice", SenseVoiceSmall(model_dir, batch_size=1, quantize=True))
+            print(f"[asr] SenseVoice loaded successfully!", flush=True)
             return
-        except Exception as e:
-            print(f"[asr] SenseVoice load failed ({e}); falling back to whisper", flush=True)
+        except BaseException as e:
+            # M8-1: 捕捉所有異常（包括非 Exception 派生的異常）
+            import traceback
+            print(f"[asr] SenseVoice load failed: {type(e).__name__}: {e}", flush=True)
+            print(f"[asr] Traceback:", flush=True)
+            traceback.print_exc()
+            print(f"[asr] Falling back to Whisper", flush=True)
             ENGINE = "whisper"
     from faster_whisper import WhisperModel
     # M3-6b：嘗試 GPU 加速（device=cuda, compute_type=float16）；若記憶體不足則降級
