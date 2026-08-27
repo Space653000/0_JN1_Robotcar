@@ -88,7 +88,10 @@ INTENT_PATTERNS = [
     ("state",  r"(看到|看見|前面|周圍|附近|旁邊|眼前|畫面裡?|鏡頭).*(什麼|啥|東西|人|物|幾個)|"
                r"有沒有(人|東西|貓|狗|車)|有幾(個|人)|數一?下|現在.*(看到|有什麼)"),
     ("describe", r"(仔細|詳細|好好).*(描述|說明|看)|這是(什麼|啥)|描述.*(畫面|場景|這)|"
-                 r"畫面(是|裡有).*(什麼|啥)|看看這(個|張)|幫我看(一下)?這"),
+                 r"畫面(是|裡有).*(什麼|啥)|看看這(個|張)|幫我看(一下)?這|"
+                 r"(背景|周圍|四周|環境).*(什麼|啥|顏色|色彩|怎樣|長怎樣)|"
+                 r"(顏色|色彩|光線|燈光|光源).*(什麼|啥)?|這(個|張|裡|地方).*怎樣|"
+                 r"長怎樣|幫我描述|詳細說|什麼地方|什麼場景"),
 ]
 FAQ_RE = [(name, re.compile(p)) for name, p in FAQ_PATTERNS]
 INTENT_RE = [(name, re.compile(p)) for name, p in INTENT_PATTERNS]
@@ -508,9 +511,15 @@ def handle_intent(intent: str, text: str) -> dict:
                     zh_desc = _translate_vlm_to_zh(en_desc)
                     result = {"reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc}
                 else:
-                    result = {"reply": "相機或視覺服務有問題。", "source": "vision-error"}
+                    # VLM 失敗時，改用 LLM 基於知識描述
+                    logger.warning(f"vision 失敗 ({vlm_data.get('error')}), fallback to LLM")
+                    prompt = "用一句話描述鏡頭前的場景，包括光線、背景、物體等（你看不到實際畫面，但根據前面看過的東西推測）"
+                    llm_reply = _chat(prompt)
+                    result = {"reply": to_traditional(llm_reply), "source": "llm-fallback", "vision_error": vlm_data.get("error")}
             else:
-                result = {"reply": "視覺服務還沒啟動。", "source": "none"}
+                # Vision 未啟動時，改用 LLM 直接應答
+                llm_reply = _chat(text)
+                result = {"reply": to_traditional(llm_reply), "source": "llm-only"}
         elif intent == "ocr":
             if _up("ocr"):
                 o = _ocr_read()
