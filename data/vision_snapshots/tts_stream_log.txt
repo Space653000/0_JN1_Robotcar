@@ -1,0 +1,59 @@
+【TTS 串流播放測試】
+時間：2026-08-27 22:32:05
+
+【測試 1：短句『你好』】
+
+呼叫 Brain 處理『你好』...
+Brain 回應：
+{
+  "ok": true,
+  "intent": "chat",
+  "reply": "你好啦，有需要幫手咩？",
+  "source": "llm",
+  "tts": {
+    "ok": true,
+    "engine": "piper",
+    "text_len": 11,
+    "time_to_first_sound_ms": 1808.7966442108154,
+    "total_stream_ms": 5143.366098403931,
+    "call_total_ms": 5143.701553344727
+  }
+}
+
+總延遲：10714ms
+
+
+【測試 2：視覺查詢『前面有什麼』】
+
+Brain 回應：
+{
+  "ok": true,
+  "intent": "state",
+  "reply": "我前面沒看到明確的東西。",
+  "source": "perception-natural",
+  "state": {
+    "ok": true,
+    "detections": [],
+    "num_detections": 0,
+    "inference_time_ms": 29.62
+  },
+  "hallucination_check": {
+    "is_clean": true,
+    "hallucinated_objects": []
+  },
+  "tts": {
+    "ok": true,
+    "engine": "piper",
+    "text_len": 12,
+    "time_to_first_sound_ms": 2259.6678733825684,
+    "total_stream_ms": 4622.819662094116,
+    "call_total_ms": 4622.992992401123
+  }
+}
+
+總延遲：4840ms
+
+【優化成果】
+- TTS 實裝句子級串流播放
+- 第一聲音時間：~1.8s（Piper 引擎限制）
+- 長句自動分段，邊合成邊播

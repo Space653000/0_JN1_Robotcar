@@ -8,6 +8,8 @@ import os
 import time
 import subprocess
 import wave
+import threading
+import queue
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -152,49 +154,101 @@ def health():
     return {"ok": os.path.exists(PIPER_MODEL), "engine": "piper", "voice": PIPER_VOICE}
 
 
+def _split_sentences(text: str):
+    """用標點切分成短句，用於串流播放。"""
+    import re
+    # 按標點符號切分（保留標點）
+    sentences = re.split(r'([，。？！；、])', text)
+    result = []
+    current = ""
+    for part in sentences:
+        if part in "，。？！；、":
+            result.append(current + part)
+            current = ""
+        elif part.strip():
+            current = part
+    if current.strip():
+        result.append(current)
+    return [s.strip() for s in result if s.strip()]
+
+
+def _play_async(wav_path: str):
+    """非阻塞播放（後台執行）。"""
+    try:
+        subprocess.run(["paplay", wav_path], capture_output=True, timeout=60)
+    except Exception as e:
+        print(f"[tts] async play error ({wav_path}): {e}", flush=True)
+
+
+def _stream_play(text: str):
+    """
+    串流播放：句子級分段。
+    - 切分成短句
+    - 合成第一句，立刻啟動播放（非阻塞）
+    - 同時後台合成和播放後續句子
+    - 返回 (time-to-first-sound, total-play-time)
+    """
+    os.makedirs(LOGDIR, exist_ok=True)
+
+    sentences = _split_sentences(text)
+    if not sentences:
+        print(f"[tts] stream_play: no sentences", flush=True)
+        return None, None
+
+    time_to_first_sound = None
+    stream_start = time.time()
+
+    # 播放隊列
+    play_threads = []
+
+    for idx, sent in enumerate(sentences):
+        synth_start = time.time()
+
+        # 合成
+        wav = os.path.join(LOGDIR, f"tts_{int(time.time()*1000)}_{idx}.wav")
+        ok = _synth_segment(sent, wav)
+
+        synth_ms = (time.time() - synth_start) * 1000
+        sent_len = len(sent)
+        print(f"[tts] stream sent {idx}: {sent_len} chars, synth={synth_ms:.0f}ms", flush=True)
+
+        if not ok:
+            print(f"[tts] synth failed for sentence {idx}", flush=True)
+            continue
+
+        # 第一句立刻開始播放，記錄時間
+        if idx == 0:
+            time_to_first_sound = (time.time() - stream_start) * 1000
+            print(f"[tts] time-to-first-sound: {time_to_first_sound:.0f}ms", flush=True)
+
+        # 啟動非阻塞播放
+        t = threading.Thread(target=_play_async, args=(wav,), daemon=True)
+        t.start()
+        play_threads.append(t)
+
+    # 等待所有播放完成
+    for t in play_threads:
+        t.join(timeout=120)
+
+    total_stream_ms = (time.time() - stream_start) * 1000
+    return time_to_first_sound, total_stream_ms
+
+
 @app.post("/say")
 def say(req: Say):
-    # M3-6d：分離計時合成和播放
-    # 優化：簡單文本（無標點）跳過分段補靜音，直接快速合成
-    os.makedirs(LOGDIR, exist_ok=True)
-    wav = os.path.join(LOGDIR, f"tts_{int(time.time()*1000)}.wav")
+    """V3：串流播放實裝（句子級分段）。"""
+    text = req.text.strip()
 
-    synth_start = time.time()
-    try:
-        # M3-6d：快速路徑——無標點或標點少的簡單文本直接合成，省去分段開銷
-        text = req.text.strip()
-        has_punctuation = any(c in text for c in "，。？！；、")
-
-        if not has_punctuation or len(text) < 10:
-            # 快速路徑：直接合成，不分段
-            ok = _synth_segment(text, wav)
-        else:
-            # 長句或多標點：分段補靜音
-            ok = _synth_with_pauses(text, wav)
-    except Exception as e:
-        return {"ok": False, "error": "synth failed", "detail": str(e)}
-    synth_ms = (time.time() - synth_start) * 1000
-
-    if not ok:
-        return {"ok": False, "error": "synth failed"}
-
-    play_start = time.time()
-    played, perr = False, ""
-    try:
-        pr = subprocess.run(["paplay", wav], capture_output=True, text=True, timeout=60)
-        played = (pr.returncode == 0)
-        perr = pr.stderr[-300:]
-    except Exception as e:
-        perr = str(e)
-    play_ms = (time.time() - play_start) * 1000
+    # 使用串流播放
+    call_start = time.time()
+    time_to_first_sound, total_stream_ms = _stream_play(text)
+    call_total_ms = (time.time() - call_start) * 1000
 
     return {
         "ok": True,
-        "wav": wav,
         "engine": ENGINE,
-        "played": played,
-        "play_error": perr,
-        "synth_ms": synth_ms,
-        "play_ms": play_ms,
-        "total_ms": synth_ms + play_ms
+        "text_len": len(text),
+        "time_to_first_sound_ms": time_to_first_sound,
+        "total_stream_ms": total_stream_ms,
+        "call_total_ms": call_total_ms
     }
