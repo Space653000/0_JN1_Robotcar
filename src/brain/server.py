@@ -68,6 +68,7 @@ SYS = ("你是一台機器車上的語音助理。"
 app = FastAPI(title="robotcar-brain", version="2.0.0")
 _memory = deque(maxlen=MEM_TURNS * 2)
 _llm_lock = threading.Lock()  # M3-5b：序列化 LLM 呼叫，避免並發競爭
+_llm_warmup_done = False  # M6-4：模型預熱標誌
 
 # M6-1b：輕量粵語詞彙替換（防止模型偶爾漏掉）
 # M6-1b：移除容易誤傷的項（係、呀、啦），保留安全的替換
@@ -240,6 +241,23 @@ def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
                 else:
                     raise
     return ""
+
+
+def _warmup_llm():
+    """M6-4：LLM 預熱。應用啟動時呼叫一次，使模型進入 CPU/GPU 快取。"""
+    global _llm_warmup_done
+    if _llm_warmup_done:
+        return
+    try:
+        logger.info("[brain] Warming up LLM model...")
+        warmup_start = time.time()
+        # 簡單的預熱查詢
+        _chat("你好", remember=False)
+        warmup_ms = (time.time() - warmup_start) * 1000
+        logger.info(f"[brain] LLM warmup done in {warmup_ms:.0f}ms")
+        _llm_warmup_done = True
+    except Exception as e:
+        logger.warning(f"[brain] LLM warmup failed: {e}")
 
 
 def _speak(text: str):
@@ -603,7 +621,18 @@ def health():
     for name in REGISTRY:
         st[name] = _up(name)
     core = st["ollama"] and st["asr"] and st["tts"]
-    return {"ok": core, "services": st, "llm": LLM, "mem_turns": MEM_TURNS}
+
+    # M6-4：首次呼叫時執行 LLM 預熱（非阻塞）
+    if core and not _llm_warmup_done:
+        def warmup_thread():
+            try:
+                _warmup_llm()
+            except Exception as e:
+                logger.debug(f"Warmup thread error: {e}")
+        t = threading.Thread(target=warmup_thread, daemon=True)
+        t.start()
+
+    return {"ok": core, "services": st, "llm": LLM, "mem_turns": MEM_TURNS, "llm_warmed": _llm_warmup_done}
 
 
 @app.get("/stats")
