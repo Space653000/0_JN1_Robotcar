@@ -31,6 +31,20 @@ HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "180"))
 
 _cc = OpenCC("s2twp")
 
+# YOLO 80 classes for hallucination detection
+YOLO_CLASSES = {
+    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "cat", "dog",
+    "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
+    "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
+    "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+    "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
+    "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa",
+    "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote",
+    "keyboard", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock",
+    "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+}
+
 REGISTRY = {
     "asr":        {"url": os.environ.get("ASR_URL", "http://asr:8000"),       "on_demand": False},
     "tts":        {"url": os.environ.get("TTS_URL", "http://tts:8000"),       "on_demand": False},
@@ -227,6 +241,121 @@ def _fmt_state_zh(state: dict) -> str:
     return "我看到 " + "、".join(parts) + "。"
 
 
+def _verify_no_hallucination(natural_desc: str, detected_labels_zh: set) -> tuple:
+    """驗證自然句子是否出現了清單沒有的物體（防幻覺檢查）。
+
+    Args:
+        natural_desc: 生成的自然句子
+        detected_labels_zh: 實際偵測到的物體名稱（繁體中文）
+
+    Returns:
+        (is_clean, hallucinated_objects): 是否無幻覺 + 幻覺物體列表
+    """
+    hallucinated = []
+
+    # 構建 YOLO 類名的繁體版本映射（簡單版）
+    yolo_zh_map = {
+        "人": "person", "瓶子": "bottle", "椅子": "chair", "桌子": "diningtable",
+        "車": "car", "狗": "dog", "貓": "cat", "馬": "horse", "牛": "cow",
+        "杯子": "cup", "叉": "fork", "刀": "knife", "湯匙": "spoon", "碗": "bowl",
+        "香蕉": "banana", "蘋果": "apple", "三明治": "sandwich", "橙": "orange",
+        "電腦": "laptop", "鼠標": "mouse", "遙控器": "remote", "鍵盤": "keyboard",
+        "微波爐": "microwave", "烤箱": "oven", "冰箱": "refrigerator", "書": "book",
+        "時鐘": "clock", "花瓶": "vase", "剪刀": "scissors", "熊": "teddy bear"
+    }
+
+    # 檢查句子中是否出現了 YOLO 類中的物體名（但不在偵測清單中）
+    for yolo_zh, yolo_en in yolo_zh_map.items():
+        if yolo_zh in natural_desc and yolo_zh not in detected_labels_zh:
+            hallucinated.append(yolo_zh)
+
+    is_clean = len(hallucinated) == 0
+    return is_clean, hallucinated
+
+
+def _describe_detections_naturally(dets: list) -> dict:
+    """用 qwen2.5 生成自然句子描述偵測物體（嚴格限定只用清單物體）。
+
+    Returns:
+        {
+            "reply": "自然句子",
+            "is_clean": True/False (無幻覺),
+            "hallucinated": ["物體1", "物體2"] (如果有幻覺)
+        }
+    """
+    if not dets:
+        return {
+            "reply": "我前面沒看到明確的東西。",
+            "is_clean": True,
+            "hallucinated": []
+        }
+
+    # 构建物体清单（繁体标签）
+    obj_list = []
+    detected_labels_zh = set()
+    for d in dets:
+        lbl = d.get("label_zh") or d.get("label") or "物體"
+        detected_labels_zh.add(lbl)
+        # 尝试用 bbox 推断位置（640 宽度为基准）
+        bbox = d.get("bbox", [])
+        if bbox:
+            x_mid = (bbox[0] + bbox[2]) / 2 if len(bbox) >= 3 else 320
+            if x_mid < 213:  # 左三分之一
+                obj_list.append(f"{lbl}（左邊）")
+            elif x_mid > 427:  # 右三分之一
+                obj_list.append(f"{lbl}（右邊）")
+            else:  # 中间
+                obj_list.append(f"{lbl}（中間）")
+        else:
+            obj_list.append(lbl)
+
+    # 严格的 prompt，禁止幻觉
+    obj_str = "、".join(obj_list)
+    prompt = f"""以下是相機此刻真實偵測到的物體（只有這些）：{obj_str}。
+
+用自然口語繁體中文一句話描述。規則：
+1. 只能提到上面清單裡的物體
+2. 絕對不能加入清單沒有的任何東西
+3. 可以用「左邊」「右邊」「中間」等位置描述讓句子更自然
+4. 如果清單為空，說「我前面沒看到明確的東西」
+
+生成的句子："""
+
+    try:
+        # 调用 LLM，remember=False 以避免污染对话记忆
+        resp = requests.post(
+            f"{OLLAMA}/api/chat",
+            json={
+                "model": LLM,
+                "stream": False,
+                "messages": [{"role": "user", "content": prompt}],
+                "options": {"num_ctx": NUM_CTX}
+            },
+            timeout=HTTP_TIMEOUT
+        )
+        resp.raise_for_status()
+        natural_desc = resp.json()["message"]["content"].strip()
+
+        # 转换为繁体
+        natural_desc = _cc.convert(natural_desc)
+
+        # 防幻觉验证
+        is_clean, hallucinated = _verify_no_hallucination(natural_desc, detected_labels_zh)
+
+        return {
+            "reply": natural_desc,
+            "is_clean": is_clean,
+            "hallucinated": hallucinated
+        }
+    except Exception as e:
+        # 失败时降级为原始格式
+        return {
+            "reply": _fmt_state_zh({"detections": dets}),
+            "is_clean": True,
+            "hallucinated": []
+        }
+
+
 def handle_intent(intent: str, text: str) -> dict:
     try:
         result = None
@@ -243,9 +372,19 @@ def handle_intent(intent: str, text: str) -> dict:
             if _up("perception"):
                 st = _perception_state()
                 remember_objects_from_state(st)
-                result = {"reply": _fmt_state_zh(st), "source": "perception", "state": st}
+                # M3-4：用 qwen 生成自然句子描述偵測物體
+                dets = st.get("detections") or []
+                natural_data = _describe_detections_naturally(dets)
+                result = {
+                    "reply": natural_data["reply"],
+                    "source": "perception-natural",
+                    "state": st,
+                    "hallucination_check": {
+                        "is_clean": natural_data["is_clean"],
+                        "hallucinated_objects": natural_data["hallucinated"]
+                    }
+                }
             else:
-                # 工作項 1：封死幻覺退路 — 絕不編造場景，老實回答
                 result = {"reply": "視覺服務還沒啟動，我暫時看不到。", "source": "none"}
         elif intent == "describe":
             if _up("vision"):
