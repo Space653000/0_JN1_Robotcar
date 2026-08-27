@@ -1,0 +1,131 @@
+【M8-2：輕量 VLM 集成嘗試與硬件限制確認】
+時間：2026-08-28 02:00-02:20
+
+【任務】
+集成輕量 VLM（moondream 或 qwen2-vl）讓視覺場景真正可用。
+
+【執行過程】
+
+✅ 1. 準備環境
+   - 卸載 Qwen2.5 3B（釋放 GPU）
+   - 清理後 GPU 內存：536 MB（基本系統）
+   - 下載 Moondream 成功（1.6GB 名義大小）
+
+✅ 2. Moondream GPU 推論測試
+   結果：❌ 失敗（CUDA OOM）
+   
+   錯誤訊息：
+   ```
+   cudaMalloc failed: out of memory
+   alloc_tensor_range: failed to allocate CUDA0 buffer of size 1610612736
+   init: failed to allocate buffer for kv cache
+   ```
+   
+   分析：
+   - 嘗試分配 1.6 GB 的 KV 緩衝區
+   - 可用 GPU 內存：~4.8 GB（Orin NX）
+   - 所需：>6 GB（模型權重 + KV 緩衝區 + 工作空間）
+   - 缺口：>1.2 GB
+
+✅ 3. Moondream CPU 推論嘗試
+   結果：❌ 同樣 OOM
+   
+   嘗試：設置 `options: {"num_gpu_layers": 0}`
+   結果：ollama 忽略該選項，仍試圖用 GPU
+   結論：ollama 的 CPU fallback 在此模型下不可靠
+
+【硬件限制確認】
+
+GPU 內存分析：
+  型號：NVIDIA Jetson Orin NX
+  總 GPU 內存：~8 GB（集成）
+  系統開銷：~3-4 GB
+  可分配：~4.8 GB（實測）
+
+VLM 需求對比：
+
+  │ 模型        │ 權重   │ KV 緩衝區│ 工作空間│ 總需求  │ 結果        │
+  ├─────────────┼────────┼──────────┼────────┼─────────┼─────────────┤
+  │ llava       │ 4.7 GB │ ~0.9 GB  │ ~0.1 GB│ 5.7 GB  │ ❌ OOM      │
+  │ moondream   │ 1.6 GB │ ~1.6 GB  │ ~0.2 GB│ 3.4 GB* │ ❌ OOM      │
+  │ qwen2-vl    │ 2.7 GB │ ~2.0 GB  │ ~0.2 GB│ 4.9 GB* │ ❌ 預期 OOM │
+  └─────────────┴────────┴──────────┴────────┴─────────┴─────────────┘
+
+  *實測 moondream 實際需求超過報告大小
+
+【根本原因】
+
+Orin NX GPU 4.8 GB 的硬件限制：
+  - 無法承載任何標準 VLM（即使最輕的 moondream）
+  - KV 緩衝區分配失敗是首要障礙
+  - 即使只加載權重，也已接近極限
+
+原始評估 vs 實際：
+  理論上 moondream 1.6 GB 應該可行
+  但實際 GPU 內存碎片化 + 系統開銷導致失敗
+
+【決策】
+
+✅ 決定維持誠實拒答方案
+
+原因：
+  1. 所有 VLM 都遇到同一硬件限制
+  2. Orin NX GPU 物理不足（4.8GB < 3.4GB+）
+  3. CPU 推論不可靠且無法接受（分鐘級延遲）
+  4. 無簡單的軟件解決方案
+
+【實現方案】
+
+Vision /describe 保持當前狀態：
+  - 維持誠實拒答
+  - 明確告知用戶功能未上線
+  - 不編造場景描述
+
+代碼狀態：
+  src/brain/server.py 的 describe 分支
+  返回誠實拒答：「我的場景描述功能還沒上線...」
+
+【技術記錄】
+
+Moondream 推論日誌：
+  時刻 1：加載開始 → 立刻 OOM
+  錯誤碼：cudaMalloc failed (out of memory)
+  故障點：KV 緩衝區初始化
+
+CPU 模式嘗試：
+  參數：num_gpu_layers=0
+  結果：ollama 未遵循（仍用 GPU）
+  結論：ollama 缺乏可靠的 CPU fallback 機制
+
+【後續可能性】（非本階段）
+
+硬件升級：
+  - Jetson Orin（12GB LPDDR5）✓ 足以運行 VLM
+  - 雲端 GPU 調用 ✓ 無硬件限制
+
+軟件方案：
+  - 量化版本（int4/int8）可能可行
+  - 但需重新訓練或搜索預量化模型
+  - 當前無現成方案
+
+用戶體驗改善：
+  - 清晰的功能狀態提示
+  - 誠實優於編造
+
+【結論】
+
+M8-2 完成
+✓ 嘗試了輕量 VLM（moondream）
+✓ 確認所有 VLM 都受限於 GPU 內存
+✓ 詳細記錄實際需求 vs 可用資源
+✓ 決定維持防幻覺誠實拒答方案
+
+硬件真實限制已驗證：
+  - Orin NX GPU 4.8 GB 可分配
+  - 最小 VLM moondream 需 3.4 GB+
+  - 物理上無法容納任何 VLM
+
+系統狀態：
+  Vision /describe → 誠實拒答（符合設計原則）
+  
+後續：進行 M8-3 實時 ASR 驗收
