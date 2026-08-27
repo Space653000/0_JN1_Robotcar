@@ -54,7 +54,17 @@ def _init_model():
     global _model
     try:
         logger.info(f"Loading YOLO model: {YOLO_MODEL}")
-        _model = YOLO(YOLO_MODEL)
+        model_path = YOLO_MODEL
+
+        # Try direct path first, then model name
+        from pathlib import Path
+        if not Path(model_path).exists():
+            cache_path = Path.home() / '.cache' / 'yolov8' / f'{YOLO_MODEL}.pt'
+            if cache_path.exists():
+                model_path = str(cache_path)
+                logger.info(f"Using cached model: {cache_path}")
+
+        _model = YOLO(model_path)
         logger.info(f"Model loaded: {_model}")
         return True
     except Exception as e:
