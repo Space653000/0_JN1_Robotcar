@@ -43,10 +43,8 @@ app = FastAPI(title="robotcar-perception", version="1.0.0")
 # Global state
 _model = None
 _cap = None
-_latest_frame = None
 _latest_detections = None
-_frame_lock = Lock()
-_inference_lock = Lock()
+_state_lock = Lock()  # 序列化：保護相機讀取 + GPU 推論
 _last_inference_time = 0.0
 
 def _init_model():
@@ -93,91 +91,98 @@ def _init_camera():
         logger.error(f"Camera init error: {e}")
         return False
 
-def _capture_loop():
-    """Background thread: continuously capture frames."""
-    global _latest_frame, _cap
+def _get_latest_frame():
+    """同步讀取最新相機幀（沖掉舊幀，取最新的一張）。"""
+    global _cap
 
     if _cap is None or not _cap.isOpened():
         logger.error("Camera not initialized")
-        return
+        return None
 
-    while True:
-        try:
-            ret, frame = _cap.read()
-            if ret and frame is not None:
-                with _frame_lock:
-                    _latest_frame = frame.copy()
-            time.sleep(1.0 / FRAME_RATE)
-        except Exception as e:
-            logger.error(f"Capture loop error: {e}")
-            time.sleep(0.5)
+    # 沖掉緩衝區中的舊幀，只拿最新的
+    frame = None
+    for _ in range(5):  # 最多沖 5 次，避免無限迴圈
+        ret, f = _cap.read()
+        if not ret:
+            break
+        frame = f
 
-def _get_frame():
-    """Get the latest captured frame."""
-    with _frame_lock:
-        return _latest_frame.copy() if _latest_frame is not None else None
+    return frame if frame is not None else None
 
-def _run_inference(frame):
-    """Run YOLO inference on frame, return detected objects with Chinese labels."""
-    global _model, _latest_detections, _last_inference_time
+def _run_inference():
+    """序列化：同時進行「讀最新幀 + GPU 推論」，用全域鎖保護避免死鎖。"""
+    global _model, _latest_detections, _last_inference_time, _cap
 
     if _model is None:
         return {"ok": False, "error": "Model not loaded"}
 
-    if frame is None:
-        return {"ok": False, "error": "No frame available"}
+    # 序列化保護：同一時刻只有一個執行緒在操作相機 + GPU
+    with _state_lock:
+        # 1. 讀取最新幀
+        frame = _get_latest_frame()
+        if frame is None:
+            return {"ok": False, "error": "No frame available"}
 
-    try:
-        with _inference_lock:
+        # 2. 在同一個鎖內進行 GPU 推論（保證無死鎖）
+        try:
             t_start = time.time()
             results = _model(frame, conf=CONFIDENCE_THRESHOLD, verbose=False)
             t_infer = time.time() - t_start
             _last_inference_time = t_infer
 
-        detections = []
-        if results and len(results) > 0:
-            result = results[0]
-            for box in result.boxes:
-                class_id = int(box.cls[0])
-                class_name_en = result.names[class_id]
-                class_name_zh = LABELS_ZH.get(class_name_en, class_name_en)
-                confidence = float(box.conf[0])
+            detections = []
+            if results and len(results) > 0:
+                result = results[0]
+                for box in result.boxes:
+                    class_id = int(box.cls[0])
+                    class_name_en = result.names[class_id]
+                    class_name_zh = LABELS_ZH.get(class_name_en, class_name_en)
+                    confidence = float(box.conf[0])
 
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-                detections.append({
-                    "class_id": class_id,
-                    "label": class_name_en,
-                    "label_zh": class_name_zh,
-                    "confidence": round(confidence, 3),
-                    "bbox": [x1, y1, x2, y2]
-                })
+                    detections.append({
+                        "class_id": class_id,
+                        "label": class_name_en,
+                        "label_zh": class_name_zh,
+                        "confidence": round(confidence, 3),
+                        "bbox": [x1, y1, x2, y2]
+                    })
 
-        _latest_detections = detections
+            _latest_detections = detections
 
-        return {
-            "ok": True,
-            "detections": detections,
-            "num_detections": len(detections),
-            "inference_time_ms": round(t_infer * 1000, 2)
-        }
-    except Exception as e:
-        logger.error(f"Inference error: {e}")
-        return {"ok": False, "error": str(e)[:100]}
+            return {
+                "ok": True,
+                "detections": detections,
+                "num_detections": len(detections),
+                "inference_time_ms": round(t_infer * 1000, 2)
+            }
+        except Exception as e:
+            logger.error(f"Inference error: {e}")
+            return {"ok": False, "error": str(e)[:100]}
 
 @app.on_event("startup")
 async def startup():
-    """Initialize model and camera on startup."""
+    """Initialize model and camera on startup, with warmup."""
     if not _init_model():
         logger.error("Failed to initialize YOLO model")
 
     if not _init_camera():
         logger.error("Failed to initialize camera")
 
-    # Start background capture thread
-    capture_thread = Thread(target=_capture_loop, daemon=True)
-    capture_thread.start()
-    logger.info("Perception service started")
+    # 工作項 2：預熱 CUDA（消耗首次 1859ms 開銷）
+    logger.info("Warming up CUDA...")
+    try:
+        import numpy as np
+        dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        t_start = time.time()
+        _model(dummy_frame, conf=CONFIDENCE_THRESHOLD, verbose=False)
+        t_warmup = time.time() - t_start
+        logger.info(f"CUDA warmup complete: {t_warmup*1000:.1f}ms")
+    except Exception as e:
+        logger.warning(f"Warmup failed (non-critical): {e}")
+
+    logger.info("Perception service started (序列化設計，無背景執行緒)")
 
 @app.get("/health")
 def health():
@@ -195,14 +200,15 @@ def health():
 
 @app.post("/state")
 def state():
-    """Run inference and return detected objects."""
-    frame = _get_frame()
-    return _run_inference(frame)
+    """序列化推論：同時讀幀 + GPU 推論，無死鎖。"""
+    return _run_inference()
 
 @app.get("/frame.jpg")
 def frame_jpg():
     """Return latest frame as JPEG (for debugging)."""
-    frame = _get_frame()
+    with _state_lock:
+        frame = _get_latest_frame()
+
     if frame is None:
         return {"ok": False, "error": "No frame available"}
 
