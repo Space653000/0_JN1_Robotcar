@@ -168,7 +168,7 @@ def _speak(text: str):
 
 
 def _perception_state():
-    r = requests.get(f"{REGISTRY['perception']['url']}/state", timeout=10)
+    r = requests.post(f"{REGISTRY['perception']['url']}/state", timeout=10)
     r.raise_for_status()
     return r.json()
 
@@ -245,8 +245,8 @@ def handle_intent(intent: str, text: str) -> dict:
                 remember_objects_from_state(st)
                 result = {"reply": _fmt_state_zh(st), "source": "perception", "state": st}
             else:
-                llm_desc = _chat("請簡要描述一個房間的典型場景，有哪些常見物品和環境特徵。用簡體中文回答，不要清單格式。", remember=False)
-                result = {"reply": to_traditional(llm_desc), "source": "llm-scene-desc"}
+                # 工作項 1：封死幻覺退路 — 絕不編造場景，老實回答
+                result = {"reply": "視覺服務還沒啟動，我暫時看不到。", "source": "none"}
         elif intent == "describe":
             if _up("vision"):
                 vlm_data = _vlm_capture("Describe this scene in detail, including objects, layout, lighting, and atmosphere. One sentence.")
