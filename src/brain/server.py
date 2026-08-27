@@ -405,11 +405,14 @@ def _describe_detections_naturally(dets: list) -> dict:
             "hallucinated": hallucinated
         }
     except Exception as e:
+        # M3-4c：記錄真正的錯誤，便於診斷
+        logger.error(f"自然句生成失敗（_describe_detections_naturally）: {type(e).__name__}: {str(e)}")
         # 失败时降级为原始格式
         return {
             "reply": _fmt_state_zh({"detections": dets}),
             "is_clean": True,
-            "hallucinated": []
+            "hallucinated": [],
+            "_error": f"{type(e).__name__}: {str(e)[:100]}"  # 除錯用，外部可見
         }
 
 
