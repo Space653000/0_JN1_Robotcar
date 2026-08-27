@@ -17,7 +17,7 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_MAX_LOADED_MODELS=1
-      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30s}   # F5/§C: unload VLM fast so qwen reloads
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-10m}   # M3-5a: qwen 常駐 10 分鐘（代理大腦需要頻繁呼叫）
     volumes:
       - ./data/ollama-new:/root/.ollama
     restart: unless-stopped

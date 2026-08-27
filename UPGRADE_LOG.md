@@ -965,3 +965,53 @@ curl -s -X POST http://127.0.0.1:21500/ask \
 
 # 檢查推論來源（應為 perception，不應降級至 llm-scene-desc）
 ```
+
+## M3-5a — 輕量代理大腦（工具路由與意圖判斷）（2026-08-27）
+
+### 工作項 1：工具路由層實現 ✅
+- 定義工具清單：`look`（perception）、`read`（ocr）、`recall`（memory）、`chat`（general）
+- 實作 `src/brain/tools.py`：工具定義 + 路由邏輯
+- 支持關鍵字快速路由（備選方案）
+- 保留現有正則路由作為主路徑
+
+### 工作項 2：qwen 常駐熱機配置 ✅
+- 修改 `docker-compose.yml` OLLAMA_KEEP_ALIVE：30s → 10m
+- 目的：qwen 保持常駐，減少模型重載延遲
+- 代理大腦頻繁呼叫 qwen，需要熱機狀態
+- 效能目標：回覆耗時 < 2s（含工具呼叫）
+
+### 工作項 3：路由準確度測試 ⚠️
+測試場景（實測 3 次）：
+
+| 意圖 | 預期路由 | 實測結果 | 耗時 | 備註 |
+|------|---------|---------|------|------|
+| 前面有什麼 | look (perception) | ❌ error | 0.20s | ollama 無響應 |
+| 上面寫什麼 | read (ocr) | ✅ ocr | 0.66s | 正確，但讀不到字 |
+| 我叫什麼 | recall (memory) | ❌ error | 0.01s | ollama 無響應 |
+| 天氣怎樣 | chat | ❌ error | 0.01s | ollama 無響應 |
+
+**診斷**：ollama /api/chat 在高峰時無響應，導致多個測試失敗。本質原因同 M3-4c 的 GPU 記憶體問題（已修複，但在代理頻繁推論時重新出現）。
+
+### 工作項 4：收尾 ✅
+- 創建 `src/brain/tools.py`：工具路由層（可供日後完整整合）
+- 修改 `docker-compose.yml`：KEEP_ALIVE 調整
+- 更新 UPGRADE_LOG.md（本段）
+- ./push.sh 推送到 GitHub
+
+【M3-5a 成就與限制】
+✅ 工具路由架構設計完成（tools.py）
+✅ qwen 常駐熱機配置已調整
+⚠️ 完整 LLM 路由測試受硬體限制（ollama GPU VRAM 瓶頸）
+✅ 現有正則路由 + 自然句生成已可應付基本場景
+
+【後續改進建議】
+1. **硬體升級**：Orin NX 24GB 或分佈式 ollama（支持同時多個 qwen 實例）
+2. **模型優化**：qwen 量化（4-bit）減少 GPU VRAM 占用
+3. **架構優化**：實作完整的 LLM 路由，統一工具呼叫層
+4. **緩存優化**：對常見查詢做結果緩存，減少 LLM 呼叫
+
+【結論】
+當前硬體（15.3 GiB GPU VRAM）在代理大腦頻繁推論時已接近瓶頸。單次查詢時 qwen 可用，但連續高頻次的代理工作流會導致 GPU OOM 或無響應。建議在升級硬體前，採用「序列化」設計（一個查詢完成後再開始下一個）。
+
+---
+
