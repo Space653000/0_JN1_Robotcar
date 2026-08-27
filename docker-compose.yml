@@ -55,7 +55,7 @@ services:
     build: { context: ., dockerfile: docker/tts/Dockerfile }
     image: robotcar-tts:0.2.0
     environment:
-      - TTS_ENGINE=${TTS_ENGINE:-kokoro}
+      - TTS_ENGINE=piper
       - KOKORO_VOICE=${KOKORO_VOICE:-zf_xiaobei}
       - PIPER_VOICE=${PIPER_VOICE:-zh_CN-huayan-medium}
       - PULSE_SERVER=unix:/run/pulse/native
