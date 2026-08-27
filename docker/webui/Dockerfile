@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/webui/server.py .
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 8080
 
 # 執行
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
