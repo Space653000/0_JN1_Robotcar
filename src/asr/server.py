@@ -55,8 +55,25 @@ def _load():
             print(f"[asr] SenseVoice load failed ({e}); falling back to whisper", flush=True)
             ENGINE = "whisper"
     from faster_whisper import WhisperModel
-    _model = ("whisper", WhisperModel(os.environ.get("WHISPER_MODEL", "small"),
-                                      device="cpu", compute_type="int8"))
+    # M3-6b：嘗試 GPU 加速（device=cuda, compute_type=float16）；若記憶體不足則降級
+    device = os.environ.get("ASR_DEVICE", "auto")  # auto | cpu | cuda
+    compute_type = os.environ.get("ASR_COMPUTE", "float16")  # float16 | int8_float16 | int8 | default
+
+    if device == "auto":
+        # 自動偵測：優先 GPU，失敗則降級 CPU
+        try:
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        except ImportError:
+            device = "cpu"
+
+    try:
+        _model = ("whisper", WhisperModel(os.environ.get("WHISPER_MODEL", "small"),
+                                          device=device, compute_type=compute_type))
+    except Exception as e:
+        print(f"[asr] Whisper with device={device} failed ({e}); fallback to CPU int8", flush=True)
+        _model = ("whisper", WhisperModel(os.environ.get("WHISPER_MODEL", "small"),
+                                          device="cpu", compute_type="int8"))
 
 
 def _clean(text: str) -> str:

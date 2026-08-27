@@ -25,11 +25,21 @@ services:
   asr:
     build: { context: ., dockerfile: docker/asr/Dockerfile }
     image: robotcar-asr:0.2.0
+    runtime: nvidia  # M3-6b：啟用 GPU 加速
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, compute, utility]
     environment:
       - ASR_ENGINE=${ASR_ENGINE:-sensevoice}      # sensevoice | whisper(fallback)
       - ASR_LANG=${ASR_LANG:-zh}
       - ASR_HOTWORDS=${ASR_HOTWORDS:-JN1,Kokoro,Jetson}
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - ASR_DEVICE=${ASR_DEVICE:-auto}             # M3-6b：auto(優先GPU) | cpu | cuda
+      - ASR_COMPUTE=${ASR_COMPUTE:-float16}        # M3-6b：float16 快速，int8 節省記憶體
       - PULSE_SERVER=unix:/run/pulse/native
       - PULSE_COOKIE=/run/pulse/cookie
     ports:
