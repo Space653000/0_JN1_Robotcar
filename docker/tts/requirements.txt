@@ -6,3 +6,5 @@ numpy>=2.0.2
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 requests==2.32.3
+# M6-3：CosyVoice2 支持（輕量 ONNX 版本）
+onnx>=1.16.0

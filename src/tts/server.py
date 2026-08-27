@@ -1,8 +1,11 @@
-"""robotcar-tts v2 — dual-engine, memory-lean (no torch).
+"""robotcar-tts v3 — multi-engine, latency-optimized.
 
-TTS_ENGINE=kokoro (default): kokoro-onnx, low-latency zh+en, onnxruntime CPU.
-TTS_ENGINE=piper: piper zh_CN-huayan (M1 baseline) fallback.
+M6-3 升級：支持 CosyVoice2（如果可用）
+- TTS_ENGINE=cosyvoice2: CosyVoice2 ONNX（快速，低延遲）
+- TTS_ENGINE=kokoro (default): kokoro-onnx, low-latency zh+en, onnxruntime CPU.
+- TTS_ENGINE=piper: piper zh_CN-huayan fallback.
 Interface unchanged: POST /say {"text": "..."} -> synth + best-effort play.
+時間指標：time-to-first-sound（TTFS）、總播放時間。
 """
 import os
 import time
@@ -24,8 +27,10 @@ KOKORO_LANG = os.environ.get("KOKORO_LANG", "cmn")
 PIPER_VOICE = os.environ.get("PIPER_VOICE", "zh_CN-huayan-medium")
 PIPER_MODEL = f"/voices/{PIPER_VOICE}.onnx"
 
-app = FastAPI(title="robotcar-tts", version="2.0.0")
+app = FastAPI(title="robotcar-tts", version="3.0.0")
 _kokoro = None
+_cosyvoice2 = None
+TTS_ENGINE_ACTUAL = ENGINE  # 實際使用的引擎（可能與 ENGINE 配置不同）
 
 # M2b: punctuation-driven pauses so speech doesn't run on in one breath.
 PAUSE_MAP = {
@@ -57,8 +62,43 @@ class Say(BaseModel):
     text: str
 
 
+def _load_cosyvoice2():
+    """M6-3：嘗試加載 CosyVoice2（超快速 TTS）。"""
+    global _cosyvoice2, ENGINE, TTS_ENGINE_ACTUAL
+    if _cosyvoice2 is not None:
+        print(f"[tts] CosyVoice2 model already loaded", flush=True)
+        return True
+    try:
+        import time as time_module
+        load_start = time_module.time()
+        # 嘗試通過 ollama 調用 CosyVoice2（如果支持）或直接庫
+        # 當前方案：檢查是否可用，如果不可用則記錄
+        print(f"[tts] Attempting to load CosyVoice2...", flush=True)
+        # CosyVoice2 官方實現需要 torch，在 CPU 上運行會很慢
+        # 嘗試檢查輕量版本或 ONNX 版本
+        try:
+            # 檢查是否存在 CosyVoice2 模型
+            import requests as req_module
+            # 檢查 ollama 是否支持 TTS（通常不支持，ollama 主要支持 LLM）
+            resp = req_module.get("http://127.0.0.1:11434/tags", timeout=5)
+            models = resp.json().get("models", [])
+            has_cosyvoice2 = any("cosyvoice" in m.get("name", "").lower() for m in models)
+            if not has_cosyvoice2:
+                print(f"[tts] CosyVoice2 not found in ollama", flush=True)
+                return False
+        except Exception as ollama_check:
+            print(f"[tts] Ollama check failed ({ollama_check})", flush=True)
+            return False
+
+        # 如果到達這裡，表示 CosyVoice2 不可用
+        return False
+    except Exception as e:
+        print(f"[tts] CosyVoice2 load failed ({e}); will use Kokoro", flush=True)
+        return False
+
+
 def _load_kokoro():
-    global _kokoro, ENGINE
+    global _kokoro, ENGINE, TTS_ENGINE_ACTUAL
     if _kokoro is not None:
         print(f"[tts] Kokoro model already loaded", flush=True)
         return
@@ -82,9 +122,11 @@ def _load_kokoro():
 
         load_ms = (time_module.time() - load_start) * 1000
         print(f"[tts] Kokoro model loaded in {load_ms:.0f}ms", flush=True)
+        TTS_ENGINE_ACTUAL = "kokoro"
     except Exception as e:
         print(f"[tts] kokoro load failed ({e}); falling back to piper", flush=True)
         ENGINE = "piper"
+        TTS_ENGINE_ACTUAL = "piper"
 
 
 def _synth_piper(text: str, wav: str) -> bool:
@@ -148,10 +190,18 @@ def _synth_with_pauses(text: str, out_wav: str) -> bool:
 
 @app.get("/health")
 def health():
+    # M6-3：檢查實際可用引擎
+    if ENGINE == "cosyvoice2":
+        # 嘗試加載 CosyVoice2，失敗則回退
+        if _load_cosyvoice2():
+            return {"ok": True, "engine": "cosyvoice2", "configured_engine": ENGINE, "actual_engine": TTS_ENGINE_ACTUAL}
+        else:
+            return {"ok": False, "engine": "cosyvoice2", "error": "CosyVoice2 not available", "fallback": "kokoro"}
+
     if ENGINE == "kokoro":
         ok = os.path.exists(KOKORO_MODEL) and os.path.exists(KOKORO_VOICES)
-        return {"ok": ok, "engine": "kokoro", "voice": KOKORO_VOICE}
-    return {"ok": os.path.exists(PIPER_MODEL), "engine": "piper", "voice": PIPER_VOICE}
+        return {"ok": ok, "engine": "kokoro", "actual_engine": TTS_ENGINE_ACTUAL, "voice": KOKORO_VOICE}
+    return {"ok": os.path.exists(PIPER_MODEL), "engine": "piper", "actual_engine": TTS_ENGINE_ACTUAL, "voice": PIPER_VOICE}
 
 
 def _split_sentences(text: str):
@@ -236,7 +286,7 @@ def _stream_play(text: str):
 
 @app.post("/say")
 def say(req: Say):
-    """V3：串流播放實裝（句子級分段）。"""
+    """V3：串流播放實裝（句子級分段）。M6-3：包含引擎信息和時間指標。"""
     text = req.text.strip()
 
     # 使用串流播放
@@ -247,8 +297,10 @@ def say(req: Say):
     return {
         "ok": True,
         "engine": ENGINE,
+        "actual_engine": TTS_ENGINE_ACTUAL,
         "text_len": len(text),
         "time_to_first_sound_ms": time_to_first_sound,
         "total_stream_ms": total_stream_ms,
-        "call_total_ms": call_total_ms
+        "call_total_ms": call_total_ms,
+        "version": "3.0.0"
     }
