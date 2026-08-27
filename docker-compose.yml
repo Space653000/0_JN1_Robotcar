@@ -158,3 +158,17 @@ services:
       - "127.0.0.1:${BRAIN_PORT:-21500}:8000"
     depends_on: [ollama-new, asr, tts, vision]
     restart: unless-stopped
+
+  webui:
+    build: { context: ., dockerfile: docker/webui/Dockerfile }
+    image: robotcar-webui:1.0.0
+    environment:
+      - BRAIN_URL=http://brain:8000
+      - PERCEPTION_URL=http://perception:8000
+      - ASR_URL=http://asr:8000
+      - TTS_URL=http://tts:8000
+      - VISION_URL=http://vision:8000
+    ports:
+      - "0.0.0.0:8080:8000"
+    depends_on: [brain, perception]
+    restart: unless-stopped
