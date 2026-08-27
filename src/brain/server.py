@@ -59,13 +59,34 @@ REGISTRY = {
     "depth":      {"url": os.environ.get("DEPTH_URL", "http://depth:8000"),   "on_demand": True},
 }
 
-SYS = ("你是一台機器車上的語音助理。用繁體中文、口語、簡潔地回答;"
-       "使用者可能中英文夾雜,你都聽得懂,但一律用繁體中文回覆。"
-       "回答盡量在兩三句內,不要條列、不要客套。")
+SYS = ("你是一台機器車上的語音助理。"
+       "一律用台灣繁體中文、標準國語 Mandarin 口語回答，禁止使用粵語詞彙（如 嘅、咩、係、喺、幫手）。"
+       "使用者可能中英文夾雜，你都聽得懂，但一律用繁體中文回覆。"
+       "回答盡量在兩三句內，不要條列、不要客套。"
+       "語氣自然親切，像在跟朋友聊天。")
 
 app = FastAPI(title="robotcar-brain", version="2.0.0")
 _memory = deque(maxlen=MEM_TURNS * 2)
 _llm_lock = threading.Lock()  # M3-5b：序列化 LLM 呼叫，避免並發競爭
+
+# M6-1：輕量粵語詞彙替換（防止模型偶爾漏掉）
+CANTONESE_REPLACEMENTS = {
+    "嘅": "的",
+    "咩": "什麼",
+    "係": "是",
+    "喺": "在",
+    "幫手": "幫忙",
+    "咁": "這樣",
+    "呀": "",  # 語氣詞，通常可以去掉
+    "嘛": "",  # 語氣詞
+    "啦": "",  # 語氣詞
+}
+
+def _remove_cantonese(text: str) -> str:
+    """輕量粵語詞彙後處理，替換常見粵語詞為國語。"""
+    for cant, mand in CANTONESE_REPLACEMENTS.items():
+        text = text.replace(cant, mand)
+    return text.strip()
 
 FAQ_PATTERNS = [
     ("faq_name",    r"你(叫|是)什麼(名字)?|你的名字(是什麼)?|你是誰"),
@@ -168,6 +189,7 @@ def _up(name: str) -> bool:
 def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
     # M3-5b：序列化 LLM 呼叫（避免並發打架）+ 重試機制
     # M3-6c：記錄呼叫次數和耗時
+    # M6-1：粵語詞彙後處理（防止模型偶爾漏掉）
     with _llm_lock:
         msgs = [{"role": "system", "content": system}]
         msgs.extend(_memory)
@@ -183,6 +205,7 @@ def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
                 elapsed_ms = (time.time() - chat_start) * 1000
                 r.raise_for_status()
                 out = r.json()["message"]["content"].strip()
+                out = _remove_cantonese(out)  # M6-1：移除粵語詞彙
                 _record_qwen_call(elapsed_ms)
                 if remember:
                     _memory.append({"role": "user", "content": user})
@@ -511,15 +534,12 @@ def handle_intent(intent: str, text: str) -> dict:
                     zh_desc = _translate_vlm_to_zh(en_desc)
                     result = {"reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc}
                 else:
-                    # VLM 失敗時，改用 LLM 基於知識描述
-                    logger.warning(f"vision 失敗 ({vlm_data.get('error')}), fallback to LLM")
-                    prompt = "用一句話描述鏡頭前的場景，包括光線、背景、物體等（你看不到實際畫面，但根據前面看過的東西推測）"
-                    llm_reply = _chat(prompt)
-                    result = {"reply": to_traditional(llm_reply), "source": "llm-fallback", "vision_error": vlm_data.get("error")}
+                    # VLM 失敗時，誠實拒答（禁止編造）
+                    logger.warning(f"vision 失敗 ({vlm_data.get('error')}), 返回誠實拒答")
+                    result = {"reply": "我的場景描述功能還沒上線（VLM 模型還在準備中），我只能用鏡頭偵測到的物體回答你。", "source": "vlm-offline", "vision_error": vlm_data.get("error")}
             else:
-                # Vision 未啟動時，改用 LLM 直接應答
-                llm_reply = _chat(text)
-                result = {"reply": to_traditional(llm_reply), "source": "llm-only"}
+                # Vision 未啟動時，誠實拒答
+                result = {"reply": "我的場景描述功能還沒上線，我只能用鏡頭偵測到的物體回答你。", "source": "vlm-offline"}
         elif intent == "ocr":
             if _up("ocr"):
                 o = _ocr_read()
