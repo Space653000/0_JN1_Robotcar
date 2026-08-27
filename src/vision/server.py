@@ -12,9 +12,18 @@ def _grab_jpeg_b64():
     try:
         r = requests.get("http://perception:8000/frame.jpg", timeout=10)
         if r.status_code == 200:
-            data = r.json()
-            if data.get("ok"):
-                return data.get("frame_b64")
+            # M6-2：perception /frame.jpg 返回 JPEG 二進制數據，需要轉為 base64
+            if r.headers.get("content-type") == "image/jpeg":
+                # 直接將 JPEG 二進制轉為 base64
+                return base64.b64encode(r.content).decode()
+            else:
+                # 嘗試 JSON 格式（如果 perception 返回 JSON）
+                try:
+                    data = r.json()
+                    if data.get("ok"):
+                        return data.get("frame_b64")
+                except:
+                    pass
     except Exception as e:
         print(f"[vision] Failed to get frame from perception: {e}")
 

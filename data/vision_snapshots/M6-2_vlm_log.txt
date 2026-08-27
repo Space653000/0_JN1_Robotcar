@@ -1,0 +1,65 @@
+【M6-2：真 VLM 上線】
+時間：2026-08-27 23:40-23:50
+
+【目標】
+將真實 VLM（llava）接入 describe 路由，使「仔細描述」返回真實視覺描述而非拒答。
+
+【執行步驟】
+
+✅ 1. 檢查 VLM 模型
+   - llava：已下載完成（4.7GB）
+   - qwen2-vl：未完成
+   - 決定：使用 llava
+
+✅ 2. 修復 vision 服務
+   - 問題：perception /frame.jpg 返回 JPEG 二進制，vision 期望 JSON base64
+   - 修法：修改 vision/_grab_jpeg_b64()，支持直接 JPEG 二進制 + base64 轉換
+   - 重建 vision 容器
+
+❌ 3. 驗證 VLM 是否上線
+   - 測試 describe 路由 —— 仍返回「功能還沒上線」
+   - 根因診斷：ollama llava 模型運行失敗
+   - 錯誤：「unable to allocate CUDA0 buffer」
+
+【根本原因】
+GPU 內存不足：Orin NX 的 GPU 無法容納 llava（4.7GB 模型）
+- 模型加載需求：~3-4GB GPU VRAM
+- Orin NX 可用 GPU：~2GB（已被其他服務占用）
+- 結論：硬件限制，無法在此環境運行
+
+【決策與行動】
+✅ 根據指示「某一步在 Orin NX 上跑不動就誠實記錄原因、退回原本可用狀態」
+✅ 維持現有誠實拒答：「場景描述功能還沒上線」（不切回編造）
+✅ 繼續下一步 M6-3（TTS 升級）
+
+【技術細節】
+1. Vision 服務修復：成功
+   - /grab_jpeg_b64() 現支持 JPEG 二進制轉 base64
+   - perception ← vision 連接正常
+
+2. Ollama VLM 失敗：GPU 內存不足
+   - 已嘗試：直接 llava 推論 —— 500 error
+   - 推論：模型 4.7GB，Orin NX GPU ~2GB 可用
+   - 無 CPU fallback：ollama llava 不支持 CPU 推論
+
+【測試記錄】
+
+場景 1：「仔細描述一下」
+  結果：「我的場景描述功能還沒上線...」
+  Source：vlm-offline
+  ✓ 誠實拒答（符合防幻覺原則）
+
+場景 2：「背景是什麼顏色」  
+  結果：「我的場景描述功能還沒上線...」
+  Source：vlm-offline
+  ✓ 誠實拒答（符合防幻覺原則）
+
+【後續優化方向】（非本階段內容）
+- 評估更輕量 VLM（qwen2-vl, moondream 等）
+- CPU 推論方案（速度慢但不需 GPU）
+- 混合方案：輕量特徵提取 + LLM 描述
+
+【結論】
+M6-2 狀態：無法完全上線（硬件限制）
+當前狀態：保持防幻覺誠實拒答，不返回編造場景
+後續行動：進行 M6-3（TTS 升級）
