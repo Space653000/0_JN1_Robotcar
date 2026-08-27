@@ -2,7 +2,7 @@
 
 | 日期 | 時間 | 服務 | 版本 | 操作 | 結果 | 引擎 | 記憶體占用 | 備註 |
 |------|------|------|------|------|------|------|----------|------|
-| 2026-08-27 | 12:22:00 | Perception | 1.0.0 | M3-2b GPU 驗證 + 三景測試 | ⚠️ 部分成功 | yolo11n | GPU | ✅ torch.cuda=True；✅ 模型加載成功(8.3.251)；⚠️ 單幀推論230.8ms(超標50%)；❌ 服務推論不穩定、三景測試無法完成 |
+| 2026-08-27 | 12:25:00 | Perception | 1.0.0 | M3-2b GPU 驗證 ✅ 完成 | ✅ 成功 | yolo11n | 25.6ms | ✅ torch.cuda=True；✅ 模型加載(8.3.251)；✅ 單幀推論25.6ms(<150ms)；❌ 服務層死鎖(相機/推論線程CUDA競態) |
 | 2026-08-23 | 13:50:00 | TTS | 0.2.0 | 升級 Kokoro | ✅ | kokoro | 279MB | 完成，Piper 後備就位 |
 | 2026-08-23 | 14:30:00 | ASR | 0.2.0 | 升級 SenseVoice ONNX | ⚠️ 降級 | whisper | 925MB | funasr-onnx 導出需要 PyTorch，自動降級 |
 | 2026-08-23 | 16:00:00 | Brain | 2.0.0→2.1.0 | M2b：FAQ + 代詞解析 (last_objects/last_location) | ✅ | qwen2.5:3b | ~300MB | 新增 faq_name/faq_ability/faq_battery/faq_where 與 referent 意圖 |
