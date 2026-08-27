@@ -164,6 +164,7 @@ def _up(name: str) -> bool:
 
 def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
     # M3-5b：序列化 LLM 呼叫（避免並發打架）+ 重試機制
+    # M3-6c：記錄呼叫次數和耗時
     with _llm_lock:
         msgs = [{"role": "system", "content": system}]
         msgs.extend(_memory)
@@ -171,12 +172,15 @@ def _chat(user: str, system: str = SYS, remember: bool = True) -> str:
 
         for attempt in range(2):
             try:
+                chat_start = time.time()
                 r = requests.post(f"{OLLAMA}/api/chat",
                                 json={"model": LLM, "stream": False, "messages": msgs,
                                       "options": {"num_ctx": NUM_CTX}},
                                 timeout=30)  # 縮短 timeout 至 30s
+                elapsed_ms = (time.time() - chat_start) * 1000
                 r.raise_for_status()
                 out = r.json()["message"]["content"].strip()
+                _record_qwen_call(elapsed_ms)
                 if remember:
                     _memory.append({"role": "user", "content": user})
                     _memory.append({"role": "assistant", "content": out})
@@ -342,6 +346,18 @@ def _get_position_and_distance(bbox, image_width=640, image_height=480):
     return position, distance
 
 
+# M3-6c：計時和監控
+_qwen_call_count = 0
+_qwen_call_times = []
+
+def _record_qwen_call(elapsed_ms: float):
+    """記錄一次 qwen 呼叫。"""
+    global _qwen_call_count, _qwen_call_times
+    _qwen_call_count += 1
+    _qwen_call_times.append(elapsed_ms)
+    logger.info(f"[qwen #{_qwen_call_count}] {elapsed_ms:.0f}ms")
+
+
 def _describe_detections_naturally(dets: list) -> dict:
     """用 qwen2.5 生成自然句子描述偵測物體（嚴格限定只用清單物體）。
     M3-4b 升級：使用位置+距離+量詞讓句子更自然。
@@ -408,9 +424,11 @@ def _describe_detections_naturally(dets: list) -> dict:
 
     try:
         # M3-5b：序列化 LLM 呼叫（使用 lock + 重試）
+        # M3-6c：記錄呼叫次數和耗時
         with _llm_lock:
             for attempt in range(2):
                 try:
+                    desc_start = time.time()
                     resp = requests.post(
                         f"{OLLAMA}/api/chat",
                         json={
@@ -421,8 +439,10 @@ def _describe_detections_naturally(dets: list) -> dict:
                         },
                         timeout=30
                     )
+                    elapsed_ms = (time.time() - desc_start) * 1000
                     resp.raise_for_status()
                     natural_desc = resp.json()["message"]["content"].strip()
+                    _record_qwen_call(elapsed_ms)
 
                     # 转换为繁体
                     natural_desc = _cc.convert(natural_desc)
@@ -535,6 +555,28 @@ def health():
         st[name] = _up(name)
     core = st["ollama"] and st["asr"] and st["tts"]
     return {"ok": core, "services": st, "llm": LLM, "mem_turns": MEM_TURNS}
+
+
+@app.get("/stats")
+def stats():
+    # M3-6c：返回 qwen 調用統計
+    global _qwen_call_count, _qwen_call_times
+    avg_ms = sum(_qwen_call_times) / len(_qwen_call_times) if _qwen_call_times else 0
+    return {
+        "qwen_calls": _qwen_call_count,
+        "qwen_times_ms": _qwen_call_times,
+        "qwen_avg_ms": avg_ms,
+        "qwen_total_ms": sum(_qwen_call_times)
+    }
+
+
+@app.post("/stats/reset")
+def stats_reset():
+    # M3-6c：重置統計
+    global _qwen_call_count, _qwen_call_times
+    _qwen_call_count = 0
+    _qwen_call_times = []
+    return {"reset": True}
 
 
 @app.post("/ask")
