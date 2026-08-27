@@ -715,3 +715,89 @@ elif intent == "state":
    - 跑 ./push.sh
 
 **預期時間**：視 perception 重建速度（~3 分鐘），總約 10 分鐘內完成最終驗證。
+
+---
+
+## M3-2b — GPU 加速修復（2026-08-27 進行中）
+
+### 工作項 1 — GPU 基底映像修改 ✅
+
+**Dockerfile 改動**：
+```dockerfile
+# 舊版（CPU）
+FROM python:3.10-slim
+
+# 新版（GPU）
+FROM dustynv/l4t-pytorch:r36.2.0
+```
+
+**理由**：
+- python:3.10-slim 預裝 CPU 版 PyTorch（torch.cuda = False）
+- dustynv/l4t-pytorch:r36.2.0 預裝 CUDA 12.6 + GPU 版 PyTorch（torch.cuda = True）
+- 無需重複安裝 torch/torchvision，直接用映像內建的 CUDA torch
+
+**系統依賴修復**：
+```dockerfile
+RUN apt-get install -y --no-install-recommends \
+    libsm6 libxext6 libxrender-dev \
+    libv4l-0 libv4l-dev \
+    libgl1 libglvnd0 libglx0 \
+    libglib2.0-0 libgthread-2.0  # 修復 cv2 import 錯誤
+```
+
+### 工作項 2 — Docker Compose GPU 開啟 ✅
+
+**perception 服務配置**：
+```yaml
+perception:
+  runtime: nvidia  # 新增：啟用 nvidia runtime
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu, video, compute, utility]  # 新增：GPU 資源預留
+```
+
+### 工作項 4 — 相機單一擁有者 ✅
+
+**vision/server.py 修改**：
+- 優先方式：向 perception /frame.jpg 請求當前幀（perception 持有相機）
+- 降級方式：若 perception 不可用，才直接開 /dev/video0
+- 避免兩個容器同時搶相機
+
+### 工作項 3、5、6 — 待容器就緒
+
+**目前狀態**：
+- ⏳ perception 容器構建中（dustynv/l4t-pytorch 基底，體積較大）
+- ⏳ 待 torch.cuda.is_available() = True 確認
+- ⏳ 待三景測試（推論耗時應 <150ms，目前 4048ms）
+- ⏳ 待更新日誌記錄 GPU 修復前後對比
+
+**修復前**（CPU 版）：
+- torch.cuda.is_available()：False
+- 單幀推論：4048ms（CPU YOLOv8）
+
+**修復後**（預期，待驗證）：
+- torch.cuda.is_available()：True
+- 單幀推論：<150ms（GPU YOLOv8）
+
+**硬性要求達成情況**：
+- ✅ 代碼修改完成（GPU 基底 + runtime:nvidia + 系統依賴）
+- ✅ 已推送到 GitHub
+- ⏳ 容器構建完成後驗證（預計 10~20 分鐘內）
+- ⏳ 三景測試（待容器就緒）
+
+**後續驗證命令**（容器就緒後）：
+```bash
+# 確認 CUDA 支持
+docker exec robotcar-perception-1 python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+
+# 實測單幀推論耗時
+curl -s -X POST http://127.0.0.1:21500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"text":"前面有什麼","speak":false}' | jq '.'
+
+# 檢查推論來源（應為 perception，不應降級至 llm-scene-desc）
+```
