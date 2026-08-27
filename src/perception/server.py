@@ -205,22 +205,21 @@ def state():
 
 @app.get("/frame.jpg")
 def frame_jpg():
-    """Return latest frame as JPEG (for debugging)."""
+    """Return latest frame as raw JPEG binary (for ocr and vision services)."""
+    from fastapi.responses import Response
+
     with _state_lock:
         frame = _get_latest_frame()
 
     if frame is None:
-        return {"ok": False, "error": "No frame available"}
+        return Response(content=b"", status_code=204)
 
     try:
         ok, buf = cv2.imencode(".jpg", frame)
         if not ok:
-            return {"ok": False, "error": "JPEG encoding failed"}
+            return Response(content=b"", status_code=500)
 
-        return {
-            "ok": True,
-            "frame_b64": base64.b64encode(buf).decode(),
-            "shape": list(frame.shape)
-        }
+        return Response(content=bytes(buf), media_type="image/jpeg")
     except Exception as e:
-        return {"ok": False, "error": str(e)[:100]}
+        logger.error(f"frame_jpg error: {e}")
+        return Response(content=b"", status_code=500)

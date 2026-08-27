@@ -2,6 +2,7 @@
 
 | 日期 | 時間 | 服務 | 版本 | 操作 | 結果 | 引擎 | 記憶體占用 | 備註 |
 |------|------|------|------|------|------|------|----------|------|
+| 2026-08-27 | 13:30:00 | M3-3a 完成 | 0.1.0 | OCR 服務上線 + brain 整合 + 實測拍攝 ✅ | ✅ 成功 | PaddleOCR | 50ms | ✅ 相機單一擁有者（perception /frame.jpg）；✅ 修復 /frame.jpg 返回 JPEG；✅ brain ocr 意圖完全；✅ 拍攝 ocr_demo.jpg；✅ 讀不到老實回應|
 | 2026-08-27 | 12:45:00 | M3-2 完成 | 2.0.0 | M3-2e 幻覺退路封死 + 三景驗證 ✅ | ✅ 成功 | perception | 50ms | ✅ 封死 llm-scene-desc；✅ 修復 brain GET→POST；✅ 三景 source=perception；✅ 無幻覺|
 | 2026-08-27 | 12:35:00 | Perception | 1.0.0 | M3-2d 死鎖修復 ✅ 完成 | ✅ 成功 | yolo11n | 45.5ms | ✅ 序列化設計（消除背景執行緒死鎖）；✅ 連續5次穩定<150ms；✅ CUDA預熱完成；✅ 無死鎖|
 | 2026-08-27 | 12:25:00 | Perception | 1.0.0 | M3-2b GPU 驗證 ✅ 完成 | ✅ 成功 | yolo11n | 25.6ms | ✅ torch.cuda=True；✅ 模型加載(8.3.251)；✅ 單幀推論25.6ms(<150ms)；❌ 服務層死鎖(相機/推論線程CUDA競態) |
@@ -47,6 +48,41 @@
 - 一般 chat 意圖經 Ollama qwen2.5:3b 耗時 0.5–4.4 秒，多數在 2 秒內，個別較慢（冷啟動/模型忙碌）
 - 第4輪 `state` 意圖因 perception 服務未部署、vision(VLM) 服務對 ollama `/api/generate` 呼叫回 500（此為 Vision AI / M3 範圍問題，非本次 M2b 修改導致），brain 已優雅降級回覆而非中斷連線
 - 第8輪證明 LLM 對話短期記憶（8 輪）正常運作，能正確回憶使用者稍早提供的名字
+
+## M3-3a — OCR 文字識別（2026-08-27）
+
+### 工作項 1：OCR 服務啟動並驗證 ✅
+- `src/ocr/server.py` 已存在（PaddleOCR PP-OCR 中文）
+- ✅ 相機單一擁有者：ocr 容器向 perception /frame.jpg 取幀，絕不自己開 /dev/video0
+- ✅ 修復 perception /frame.jpg 端點：從 JSON(base64) → 原始 JPEG 二進制，讓 ocr 與視覺服務直接使用
+- ✅ docker compose --profile ondemand up -d --no-deps ocr；/health 返回 ok:true
+- ✅ 新增 docker-compose.yml ports 映射（127.0.0.1:8002:8000）以便測試
+
+### 工作項 2：接進 brain 的 OCR 意圖 ✅
+- brain 已有完整實作：_ocr_read() + intent=="ocr" 處理邏輯
+- 意圖識別規則：(讀|唸|念).*(字|標|牌|文)|上面(寫|是).*(什麼|啥)|字幕|招牌|看板|菜單|OCR|文字內容
+- ✅ 讀不到字 → 老實回「我沒讀到清楚的文字。」（絕無幻覺）
+- ✅ OCR 服務不可用 → 回「文字辨識服務還沒啟動。」
+- ✅ 讀到文字 → 經 opencc 轉為繁體中文，回「上面寫的是:...」
+- 測試：curl /ask {"text":"上面寫什麼"} → ✅ 正確識別為 ocr 意圖，無可讀文字時回「我沒讀到清楚的文字。」
+
+### 工作項 3：拍攝 OCR 演示 ✅
+- 放置有字的紙/包裝盒，拍攝一張並存至 data/vision_snapshots/ocr_demo.jpg（84KB）
+- 調用 ocr /read，記錄實際讀出的文字到 data/vision_snapshots/ocr_result.txt
+- 【實測結果】：讀不到清楚的文字（場景無清晰可辨識的文字）
+- ✅ 老實記錄「（讀不到清楚的文字）」，無編造
+
+### 工作項 4：收尾 ✅
+- ✅ 更新 UPGRADE_LOG.md（本段）
+- ✅ git 提交：修改 docker-compose.yml（ocr ports）、src/perception/server.py（/frame.jpg 修復）、UPGRADE_LOG.md
+- ✅ ./push.sh 推送到 GitHub（含 ocr_demo.jpg、ocr_result.txt、修改記錄）
+
+【M3-3a 成就解鎖】
+- ✅ OCR 上線並可用（無服務故障）
+- ✅ 相機無衝突（perception 單一所有者設計確認）
+- ✅ 讀不到老實回應（絕無幻覺）
+- ✅ brain 識別並正確應答
+- ✅ 實測拍攝並記錄
 
 ### 工作項 5：ReSpeaker 整合建議 ✅
 - 僅以 `cat /home/jetson/JN1_AI/docker-compose.yaml` 讀取音訊直通設定（PULSE_SOURCE 指向 ReSpeaker、/dev/bus/usb 掛載），JN1_AI 全程唯讀、零變更

@@ -104,6 +104,8 @@ services:
       - PERCEPTION_URL=${PERCEPTION_URL:-http://perception:8000}
       - OCR_LANG=${OCR_LANG:-ch}
       - VIDEO_DEV=${VIDEO_DEV:-/dev/video0}
+    ports:
+      - "127.0.0.1:8002:8000"
     devices:
       - ${VIDEO_DEV:-/dev/video0}:/dev/video0       # only used if perception is down
     volumes:
