@@ -1,5 +1,6 @@
 .env
-data/
+data/*
+!data/vision_snapshots/
 *.wav
 __pycache__/
 *.pyc
