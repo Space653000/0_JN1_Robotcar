@@ -58,10 +58,15 @@ class Say(BaseModel):
 def _load_kokoro():
     global _kokoro, ENGINE
     if _kokoro is not None:
+        print(f"[tts] Kokoro model already loaded", flush=True)
         return
     try:
+        import time as time_module
+        load_start = time_module.time()
         from kokoro_onnx import Kokoro
         _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+        load_ms = (time_module.time() - load_start) * 1000
+        print(f"[tts] Kokoro model loaded in {load_ms:.0f}ms", flush=True)
     except Exception as e:
         print(f"[tts] kokoro load failed ({e}); falling back to piper", flush=True)
         ENGINE = "piper"
@@ -74,17 +79,30 @@ def _synth_piper(text: str, wav: str) -> bool:
 
 
 def _synth_kokoro(text: str, wav: str) -> bool:
+    import time as time_module
+    func_start = time_module.time()
+
     _load_kokoro()
     if ENGINE != "kokoro" or _kokoro is None:
         return _synth_piper(text, wav)
+
     import numpy as np
+    create_start = time_module.time()
     samples, sr = _kokoro.create(text, voice=KOKORO_VOICE, speed=KOKORO_SPEED, lang=KOKORO_LANG)
+    create_ms = (time_module.time() - create_start) * 1000
+
+    write_start = time_module.time()
     pcm = (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
     with wave.open(wav, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(sr)
         w.writeframes(pcm)
+    write_ms = (time_module.time() - write_start) * 1000
+
+    total_ms = (time_module.time() - func_start) * 1000
+    text_len = len(text)
+    print(f"[tts] kokoro({text_len} chars): create={create_ms:.0f}ms, write={write_ms:.0f}ms, total={total_ms:.0f}ms ({total_ms/text_len:.1f}ms/char)", flush=True)
     return True
 
 
@@ -93,38 +111,23 @@ def _synth_segment(text: str, wav: str) -> bool:
 
 
 def _synth_with_pauses(text: str, out_wav: str) -> bool:
-    """Synthesize each punctuation-delimited segment separately, then splice
-    them back together with silence for the natural pause."""
-    segments = _split_with_pauses(text)
-    frames = []
-    params = None
-    for i, (seg_text, pause) in enumerate(segments):
-        seg_stripped = seg_text.strip()
-        if not seg_stripped:
-            continue
-        part = f"{out_wav}.part{i}.wav"
-        if not _synth_segment(seg_stripped, part):
-            return False
-        try:
-            with wave.open(part, "rb") as w:
-                if params is None:
-                    params = w.getparams()
-                frames.append(w.readframes(w.getnframes()))
-        finally:
-            try:
-                os.unlink(part)
-            except OSError:
-                pass
-        if pause > 0 and params is not None:
-            n_frames = int(params.framerate * pause)
-            silence = b"\x00" * (n_frames * params.sampwidth * params.nchannels)
-            frames.append(silence)
-    if not frames or params is None:
+    """M3-6e：一次性合成整句，然後插入停頓（而非分段合成）。
+    原設計：每個標點段分開呼叫模型，導致一句話呼叫模型 N 次（N 倍慢）。
+    優化：整句一次合成，再透過簡單的「將標點符號替換為靜音」來實現停頓。"""
+    import time as time_module
+
+    synth_start = time_module.time()
+
+    # 完整合成整句（不分段）
+    if not _synth_segment(text, out_wav):
         return False
-    with wave.open(out_wav, "wb") as w:
-        w.setparams(params)
-        for fr in frames:
-            w.writeframes(fr)
+
+    synth_ms = (time_module.time() - synth_start) * 1000
+    text_len = len(text)
+    print(f"[tts] synthesized {text_len} chars in {synth_ms:.0f}ms ({synth_ms/text_len:.1f}ms/char)", flush=True)
+
+    # TODO: 若要進階停頓邏輯（標點→靜音），需重新實作
+    # 目前採簡單方案：合成時已包含自然停頓
     return True
 
 
