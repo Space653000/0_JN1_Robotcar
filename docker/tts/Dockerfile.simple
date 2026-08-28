@@ -5,10 +5,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git ffmpeg libsndfile1 && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir \
-    fastapi uvicorn python-multipart requests \
-    piper-tts pydub soundfile julius \
-    2>&1 || echo "安装完成"
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
+    fastapi uvicorn python-multipart requests piper-tts \
+    2>&1 || pip install fastapi uvicorn python-multipart requests piper-tts
 
 COPY src/tts/server.py .
 EXPOSE 8000

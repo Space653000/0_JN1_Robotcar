@@ -7,13 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/* || true
 
-# 安裝 moondream2 + transformers 依賴（不重裝 torch/torchvision）
-RUN pip install --no-cache-dir \
-    transformers \
-    accelerate \
-    pillow \
-    einops \
-    2>&1 || echo "部分依賴安裝警告"
+# 安裝 moondream2 + transformers 依賴（使用鏡像源）
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
+    transformers accelerate pillow einops \
+    2>&1 || pip install transformers accelerate pillow einops
 
 # 複製 Vision 服務代碼
 COPY src/vision/server.py .
