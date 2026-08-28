@@ -1,0 +1,33 @@
+【M10 TTS 升級 CosyVoice2 進度日誌】
+時間：2026-08-28 12:50 UTC
+系統：Jetson Orin NX, JetPack 6.2
+
+【實施進度】
+1. ✅ TTS Dockerfile 改為 dustynv/l4t-pytorch:r36.2.0（GPU PyTorch）
+2. ✅ Dockerfile 語法修正
+3. ⏳ CosyVoice2 依賴安裝（Docker 構建中）
+4. ⏳ CosyVoice2-0.5B 模型下載（HuggingFace 下載中）
+
+【技術配置】
+- Base：dustynv/l4t-pytorch:r36.2.0（cu126 相容）
+- 框架：CosyVoice（FunAudioLLM）
+- 模型：CosyVoice2-0.5B（0.5B 參數，輕量）
+- 推理：GPU PyTorch（串流 inference）
+- Fallback：Piper（保留）
+
+【預期功能】
+- 中英自動切換
+- 串流輸出（邊出邊播）
+- 首聲延遲測試（target < 200ms）
+- 自然度評估
+
+【下一步】
+1. 等待模型下載完成
+2. Docker 構建完成
+3. 實測中文 + 英文合成
+4. 記錄 TTFS 和自然度
+
+【風險控制】
+- Piper 已備份為 fallback
+- 若 GPU OOM 或不相容，自動切回 Piper
+- 不弄壞現有可用狀態
