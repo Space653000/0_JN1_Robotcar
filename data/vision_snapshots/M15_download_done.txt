@@ -1,4 +1,12 @@
-时间：2026-08-28 18:28:25
-base image：dustynv/l4t-ml:r36.4.0
-模型位置：./data/hf/moondream2
-模型大小：3.6G
+【M15 下載完成】
+時間：2026-08-28 18:23
+
+✅ Base Image: dustynv/l4t-ml:r36.4.0 (24.4GB)
+✅ Model: vikhyatk/moondream2 (3.6GB, 91 files)
+
+下載位置：
+  - Base Image: Docker registry
+  - Model: ./data/hf/moondream2
+
+下載無超時限制，已 100% 完成。
+準備進行 M15 第二段（Build + 啟動 + 測試）。
