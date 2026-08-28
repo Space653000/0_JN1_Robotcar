@@ -1,0 +1,70 @@
+# M21 最終結果檢查  Fri Aug 28 03:53:08 PM UTC 2026
+
+【1】ollama list — 模型清單
+NAME            ID              SIZE      MODIFIED           
+llava:latest    8dd30f6b0cb1    4.7 GB    About a minute ago    
+qwen2.5:3b      357c53fb659c    1.9 GB    8 minutes ago         
+
+【2】磁碟空間
+12K	data/ollama-new
+4.0K	data/ollama-new/id_ed25519
+4.0K	data/ollama-new/id_ed25519.pub
+
+【3】ollama show 詳情
+--- qwen2.5:3b ---
+  Model
+    architecture        qwen2     
+    parameters          3.1B      
+    context length      32768     
+    embedding length    2048      
+    quantization        Q4_K_M    
+
+  Capabilities
+    completion    
+    tools         
+
+  System
+    You are Qwen, created by Alibaba Cloud. You are a helpful assistant.    
+
+  License
+    Qwen RESEARCH LICENSE AGREEMENT                                     
+    Qwen RESEARCH LICENSE AGREEMENT Release Date: September 19, 2024    
+
+
+--- llava ---
+  Model
+    architecture        llama    
+    parameters          7.2B     
+    context length      32768    
+    embedding length    4096     
+    quantization        Q4_0     
+
+  Capabilities
+    completion    
+    vision        
+
+  Projector
+    architecture        clip       
+    parameters          311.89M    
+    embedding length    1024       
+    dimensions          768        
+
+  Parameters
+    stop    "[INST]"     
+    stop    "[/INST]"    
+
+【4】GPU 記憶體狀態
+[N/A], [N/A]
+
+【5】快速推理測試（qwen2.5:3b）
+提示：寫四個字
+[?2026h[?25l[1G⠙ [K[?25h[?2026l[?2026h[?25l[1G⠙ [K[?25h[?2026l[?2026h[?25l[1G⠹ [K[?25h[?2026l[?2026h[?25l[1G⠸ [K[?25h[?2026l[?2026h[?25l[1G⠼ [K[?25h[?2026l[?2026h[?25l[1G⠴ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?2026h[?25l[1G⠧ [K[?25h[?2026l[?2026h[?25l[1G⠇ [K[?25h[?2026l[?2026h[?25l[1G⠏ [K[?25h[?2026l[?2026h[?25l[1G⠋ [K[?25h[?2026l[?2026h[?25l[1G⠙ [K[?25h[?2026l[?2026h[?25l[1G⠹ [K[?25h[?2026l[?2026h[?25l[1G⠸ [K[?25h[?2026l[?2026h[?25l[1G⠼ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?2026h[?25l[1G⠧ [K[?25h[?2026l[?2026h[?25l[1G⠏ [K[?25h[?2026l[?2026h[?25l[1G⠏ [K[?25h[?2026l[?2026h[?25l[1G⠙ [K[?25h[?2026l[?2026h[?25l[1G⠙ [K[?25h[?2026l[?2026h[?25l[1G⠹ [K[?25h[?2026l[?2026h[?25l[1G⠼ [K[?25h[?2026l[?2026h[?25l[1G⠼ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?2026h[?25l[1G⠧ [K[?25h[?2026l[?2026h[?25l[1G⠇ [K[?25h[?2026l[?2026h[?25l[1G⠏ [K[?25h[?2026l[?2026h[?25l[1G⠋ [K[?25h[?2026l[?2026h[?25l[1G⠹ [K[?25h[?2026l[?2026h[?25l[1G⠹ [K[?25h[?2026l[?2026h[?25l[1G⠸ [K[?25h[?2026l[?2026h[?25l[1G⠴ [K[?25h[?2026l[?2026h[?25l[1G⠴ [K[?25h[?2026l[?2026h[?25l[1G⠦ [K[?25h[?2026l[?25l[?2026h[?25l[1G[K[?25h[?2026l[2K[1G[?25h成功[?25l[?25h
+
+[?25l[?25h
+【6】Git 狀態
+6e28b40 M21: re-pull qwen2.5:3b+llava 修復本地主腦
+b836f78 M20: qwen/llava 推理驗證
+5c3c7a6 M19b: 補 JetPack/CUDA/ollama 清單
+
+* jn1-work 6e28b40 [origin/jn1-work] M21: re-pull qwen2.5:3b+llava 修復本地主腦
+  main     6e28b40 [origin/main] M21: re-pull qwen2.5:3b+llava 修復本地主腦
