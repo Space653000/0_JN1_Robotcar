@@ -100,41 +100,56 @@ def _clean(text: str) -> str:
 
 
 def _transcribe(path: str) -> str:
+    global ENGINE
     _load()
     kind, m = _model
-    
+
     if kind == "sensevoice":
         # SenseVoice 辨識流程
         try:
             import soundfile as sf
+            import numpy as np
             # 讀取音頻文件
             audio, sample_rate = sf.read(path)
-            
-            # 如果採樣率不是 16kHz，轉換
-            if sample_rate != 16000:
-                import librosa
-                audio = librosa.resample(audio, orig_sr=sample_rate, target_sr=16000)
-                sample_rate = 16000
-            
+
+            # 轉換為 mono + 16kHz
+            if isinstance(audio, np.ndarray):
+                if len(audio.shape) > 1:
+                    audio = np.mean(audio, axis=1)  # stereo -> mono
+                if sample_rate != 16000:
+                    # 簡易重採樣：線性插值
+                    ratio = 16000 / sample_rate
+                    new_len = int(len(audio) * ratio)
+                    audio = np.interp(np.linspace(0, len(audio)-1, new_len), np.arange(len(audio)), audio)
+                    sample_rate = 16000
+
             # 創建流並辨識
             stream = m.create_stream()
-            stream.accept_waveform(sample_rate, audio)
+            stream.accept_waveform(sample_rate, audio.astype(np.float32))
             m.decode_stream(stream)
-            result = m.get_result(stream)
-            txt = result.text if hasattr(result, 'text') else str(result)
+            # sherpa-onnx API：result 直接在 stream 上
+            txt = stream.result.text if hasattr(stream.result, 'text') else str(stream.result)
+            print(f"[asr] SenseVoice result: {txt}", flush=True)
             return _apply_hotwords(_clean(txt))
         except Exception as e:
             print(f"[asr] SenseVoice transcription failed: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             # Fallback to Whisper
             ENGINE = "whisper"
             _load()
             kind, m = _model
-    
+            if kind != "whisper":
+                raise RuntimeError(f"Failed to load Whisper fallback")
+
     # Whisper 路徑
-    lang = None if LANG == "auto" else LANG
-    segments, _info = m.transcribe(path, language=lang, vad_filter=True,
-                                   hotwords=" ".join(HOTWORDS) or None)
-    return _apply_hotwords("".join(s.text for s in segments).strip())
+    if kind == "whisper":
+        lang = None if LANG == "auto" else LANG
+        segments, _info = m.transcribe(path, language=lang, vad_filter=True,
+                                       hotwords=" ".join(HOTWORDS) or None)
+        return _apply_hotwords("".join(s.text for s in segments).strip())
+
+    raise RuntimeError(f"Unknown ASR engine: {kind}")
 
 
 @app.get("/health")

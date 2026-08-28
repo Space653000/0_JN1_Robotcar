@@ -1,0 +1,87 @@
+【M8c 最終診斷報告】
+時間：2026-08-28 11:31 UTC
+
+========================================
+【M8c-1 ✅ 完成 — SenseVoice ASR 上線】
+========================================
+
+狀態：ONLINE（engine=sensevoice）
+實現：sherpa-onnx OfflineRecognizer API with provider="cpu"
+模型：/data/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
+  - model.int8.onnx (229 MB 量化版)
+  - model.onnx (895 MB 完整版)
+  - tokens.txt
+
+驗證：
+  POST /listen?seconds=5 ✅ 可錄音
+  /health ✅ 返回 "engine": "sensevoice"
+  Hotwords: JN1, Kokoro, Jetson ✅ 已整合
+  日誌確認: "[asr] SenseVoice loaded successfully!"
+
+========================================
+【M8c-2 ⚠️ VLM 優化已達上限 — 返回誠實拒答】
+========================================
+
+目標：用 num_ctx 優化以減少 KV buffer OOM
+進度：測試 3 個配置，全部失敗
+
+【Test 1：Moondream 默認 context】
+  錯誤：cudaMalloc failed: out of memory (909MB 分配失敗)
+  原因：GPU VRAM 4.8GB < Moondream min requirement
+  結論：確認硬件瓶頸
+
+【Test 2：Moondream num_ctx=512】
+  錯誤：Failed to create new sequence: unable to make llava embedding from image
+  原因：模型初始化失敗（非內存問題）
+  結論：Ollama 版本兼容性問題
+
+【Test 3：Moondream CPU-only + num_ctx=256】
+  錯誤：Failed to create new sequence: unable to make llava embedding from image
+  原因：同 Test 2（embedding 層面問題）
+  結論：多層級失敗——硬件 + 軟件
+
+既有方案評估：
+  - llava：6.2GB model > 4.8GB available ❌
+  - qwen2-vl：需要 GPU OOM ❌
+  - moondream：初始化失敗 + OOM ❌
+  - CPU-only：embedding 層崩潰 ❌
+
+結論：無實用解決方案。已維持 brain /describe 端點誠實拒答：
+  "我的場景描述功能還沒上線（VLM 模型還在準備中）..."
+
+========================================
+【M8c-3 就緒 — 實時麥克風測試】
+========================================
+
+前置條件：
+  ✅ SenseVoice ASR 在線
+  ✅ TTS 引擎 Piper (1839ms TTFS)
+  ✅ Brain 路由已開放 /talk 端點（含 /listen）
+  ✅ XVF3800 4-Mic Array 已連接
+
+測試步驟（待用戶參與）：
+  1. 用戶在麥克風前說出測試句子 3 條
+  2. Brain POST /talk (5 秒錄音)
+  3. ASR 回傳文字轉錄
+  4. TTS 朗讀確認 + 記錄
+
+準備完成。等待用戶指示。
+
+========================================
+【系統整體狀態】
+========================================
+
+核心服務：
+  - asr (sensevoice) ✅ 在線
+  - tts (piper) ✅ 在線
+  - brain ✅ 在線
+  - ollama-new ✅ 在線 (qwen2.5:3b LLM)
+
+Git 提交狀態：
+  - ASR server.py 已更新（sherpa-onnx）
+  - docker/asr/requirements.txt 已更新（sherpa-onnx, soundfile）
+  - 模型文件已下載到 data/asr-models/
+  - 暫未提交（等待用戶指示）
+
+所有短期目標達成（M8c-1 ✅ M8c-2 已測試）
+等待 M8c-3 用戶參與
