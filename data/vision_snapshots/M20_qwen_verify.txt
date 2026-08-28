@@ -1,0 +1,54 @@
+# M20 qwen/llava 推理驗證  2026-08-28 03:40 UTC
+
+【核心發現】
+✅ 容器運行中
+❌ 無任何模型已加載
+❌ 無模型檔在磁碟上
+
+═══════════════════════════════════════════
+
+## 1) ollama list 確認
+結果：
+  NAME    ID    SIZE    MODIFIED
+  (空）
+
+結論：ollama 容器無已加載模型
+
+## 2) 磁碟 volume 檢查
+data/ollama-new 大小：12K（基本為空）
+models/manifests：不存在
+
+結論：未曾 pull 過任何模型
+
+## 3) ollama show 存在檢查
+qwen2.5:3b：Error: model 'qwen2.5:3b' not found
+llava：Error: model 'llava' not found
+
+結論：兩個模型都不存在
+
+## 4) 實際推理嘗試
+命令：ollama run qwen2.5:3b "只回覆四個字：測試成功"
+
+觀察：
+  ⚠️  開始 pulling manifest
+  ⚠️  開始下載 blob：5ee4f07cdb9b，1.9 GB
+  ⚠️  下載速度：11 MB/s
+  ⚠️  預計時間：2m47s
+
+決定：**中止拉取**（用戶指示：若開始 pulling 就中止）
+
+═══════════════════════════════════════════
+
+【診斷結論】
+
+❌ qwen2.5:3b 和 llava 均未真實加載
+❌ M19 報告「qwen2.5:3b 已加載」有誤（實際無）
+❌ 無法進行推理驗證，模型需要從網絡拉取
+
+現況：ollama 容器運行但空轉（無模型）
+
+【建議】
+1. 確認 M19 報告數據來源
+2. 若需驗證推理能力，需要先 pull 模型
+3. 當前系統狀態：唯讀診斷完成，建議由用戶決定下一步
+
