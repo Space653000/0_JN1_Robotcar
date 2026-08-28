@@ -1,17 +1,48 @@
 【M9d 正確 tag cu129 ollama 測試日誌】
 時間：2026-08-28 12:40 UTC
+系統：Jetson Orin NX, JetPack 6.2
 
 【升級嘗試】
 新版 tag：dustynv/ollama:r36.4-cu129-24.04
-結果：❌ 回退
+結果：❌ 回退（CUDA 驅動不相容）
 
-容器啟動但 qwen2.5:3b 無法響應
-可能原因：CUDA 驅動不相容或初始化失敗
+【詳細過程】
+1. ✅ docker pull 成功（tag 確實存在）
+2. ✅ 容器啟動成功
+3. ❌ qwen2.5:3b 無法連接（初始化失敗）
+
+【CUDA 錯誤診斷】
+Container 日誌：
+  NvMapMemAllocInternalTagged: 1075072515 error 12
+  NvMapMemHandleAlloc: error 0
+  
+含義：NVIDIA GPU 記憶體管理驅動錯誤
+原因：cu129 版本編譯的 CUDA runtime 與系統驅動版本不相容
+
+【根本原因】
+cu129 構建針對 CUDA 12.9
+此系統 JetPack 6.2 上的 CUDA 驅動版本與 cu129 runtime 不相容
+導致 GPU 記憶體分配失敗
 
 【系統恢復】
 已回退至：0.6.8-r36.4-cu126-22.04
-狀態：✅ 恢復正常
+✅ qwen2.5:3b 恢復正常
+✅ ASR engine=sensevoice 確認
+✅ 無新風險
 
 【結論】
-cu129 版本在此 JetPack 6.2 環境不相容
-ollama 升級路徑確定無法可行
+ollama 升級路徑確定走不通
+原因：CUDA 驅動版本限制
+- cu126 build（當前）：相容
+- cu129 build（新版）：GPU 驅動不相容
+
+【下一步評估】
+1. ✅ 不升級 ollama（當前版本已穩定）
+2. 考慮替代方案（llama.cpp / transformers pytorch 容器）
+3. 等待 dustynv 發布相容新版本
+
+【系統最終狀態】
+✅ ASR：engine=sensevoice
+✅ LLM：qwen2.5:3b 對話正常
+✅ TTS：Piper 正常
+✅ VLM：誠實拒答（ollama 升級無路）
