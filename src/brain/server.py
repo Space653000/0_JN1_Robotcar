@@ -275,8 +275,26 @@ def _perception_state():
     return r.json()
 
 
-def _vlm_capture(prompt=None):
+def _ollama_stop_model(model: str = None):
+    """停止 ollama 中的模型以釋放 GPU（M11 GPU 記憶體管理）。"""
+    m = model or LLM
     try:
+        requests.post(f"{OLLAMA}/api/generate",
+                      json={"model": m, "keep_alive": 0},
+                      timeout=10)
+        logger.info(f"[brain] Unloaded {m} from GPU")
+    except Exception as e:
+        logger.warning(f"[brain] Failed to unload {m}: {e}")
+
+
+def _vlm_capture(prompt=None, manage_gpu=True):
+    """呼叫 VLM（moondream2 via vision/server）。
+    M11：若 manage_gpu=True，先停止 qwen 來釋放 GPU。"""
+    try:
+        if manage_gpu:
+            _ollama_stop_model(LLM)
+            time.sleep(0.5)  # 給 GPU 一點時間來釋放記憶體
+
         payload = {"prompt": prompt} if prompt else {}
         r = requests.post(f"{REGISTRY['vision']['url']}/capture", params=payload, timeout=200)
         data = r.json()
@@ -568,11 +586,11 @@ def handle_intent(intent: str, text: str) -> dict:
                 result = {"reply": "視覺服務還沒啟動，我暫時看不到。", "source": "none"}
         elif intent == "describe":
             if _up("vision"):
-                vlm_data = _vlm_capture("Describe this scene in detail, including objects, layout, lighting, and atmosphere. One sentence.")
+                vlm_data = _vlm_capture("Describe this scene in detail, including objects, layout, lighting, and atmosphere. One sentence.", manage_gpu=True)
                 if vlm_data.get("ok"):
                     en_desc = vlm_data.get("description", "")
                     zh_desc = _translate_vlm_to_zh(en_desc)
-                    result = {"reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc}
+                    result = {"reply": zh_desc, "source": "vision-vlm", "vlm_en": en_desc}
                 else:
                     # VLM 失敗時，誠實拒答（禁止編造）
                     logger.warning(f"vision 失敗 ({vlm_data.get('error')}), 返回誠實拒答")
@@ -687,11 +705,11 @@ def talk(seconds: int = 0):
 def see():
     # Direct vision capture with translation for /see endpoint
     if _up("vision"):
-        vlm_data = _vlm_capture("Describe this scene in one sentence, list main objects.")
+        vlm_data = _vlm_capture("Describe this scene in one sentence, list main objects.", manage_gpu=True)
         if vlm_data.get("ok"):
             en_desc = vlm_data.get("description", "")
             zh_desc = _translate_vlm_to_zh(en_desc)
-            res = {"ok": True, "reply": zh_desc, "source": "vision-translated", "vlm_en": en_desc, "intent": "describe"}
+            res = {"ok": True, "reply": zh_desc, "source": "vision-vlm", "vlm_en": en_desc, "intent": "describe"}
             return {"ok": True, **res, "tts": _speak(res["reply"])}
     return {"ok": False, "reply": "視覺服務不可用。", "source": "none", "tts": None}
 
