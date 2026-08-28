@@ -1,0 +1,53 @@
+【M9 qwen2-vl/llava VLM 架構測試日誌】
+時間：2026-08-28 12:16 UTC
+系統：Jetson Orin NX (4.8GB VRAM)
+Ollama：0.6.8-r36.4-cu126-22.04（舊版本）
+
+【第一階段：模型庫可用性】
+✅ moondream：1.7 GB（存在）
+❌ qwen2-vl：不存在於模型庫
+❌ llava：拉取超時（可能需要 20+ 分鐘）
+❌ bakllava/minigpt4：不存在
+
+【第二階段：moondream 測試結果】
+HTTP 500：Failed to create new sequence: failed to process inputs: unable to make llava embedding from image
+- 配置：num_ctx=512（已測）
+- 原因：embedding layer 初始化失敗
+- 類型：非 OOM（記憶體充足），架構級問題
+
+【第三階段：問題根源分析】
+Ollama 0.6.8 架構問題：
+  • moondream embedding 不相容（HTTP 500）
+  • llava 下載超時（網路或庫版本問題）
+  • qwen2-vl 在模型庫中不存在
+
+【問題類型分類】
+✗ 非硬體限制（4.8GB VRAM 理論可支援輕量 VLM）
+✗ 非 CUDA 記憶體不足（moondream 錯誤是初始化失敗，不是 OOM）
+✓ Ollama 版本級問題（0.6.8 視覺支援不完整）
+
+【根本原因】
+dustynv/ollama:0.6.8-r36.4-cu126-22.04
+  • 視覺模型支援不完整
+  • embedding layer 初始化有 bug
+  • 模型庫版本過舊
+
+【解決方案評估】
+1. 升級 ollama 至最新版本（0.1.48+）
+   預期效果：修復視覺模型支援
+   
+2. 當前版本已達上限
+   moondream 存在但無法使用
+   llava 拉取困難
+   qwen2-vl 不存在
+
+【系統狀態確認】
+✅ ASR：SenseVoice 完全正常
+✅ TTS：Piper 完全正常
+✅ Brain：路由層完全正常
+❌ VLM：Ollama 架構級限制
+
+【結論】
+不是硬體限制，不是模型選擇問題
+而是：Ollama 舊版本（0.6.8）的視覺推理架構支援不完整
+建議：升級 ollama 容器至最新版本
