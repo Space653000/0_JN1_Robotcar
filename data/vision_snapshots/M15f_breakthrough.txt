@@ -1,0 +1,101 @@
+【M15f moondream2 最強突破 — 不 build、docker run base + runtime 修】
+時間：2026-08-28 23:00 UTC
+結論：經過 9 次詳細嘗試，moondream2 無法在此機成功加載（根本性依賴+加載機制問題）
+
+======================
+【最終嘗試摘要】
+======================
+
+M15 完整時間線：
+  1. M15（一段）：下載 ✅
+  2. M15b（二段）：build 管線失敗 × 4
+  3. M15c（三段）：NumPy 版本衝突
+  4. M15d（四段）：numpy 釘版仍失敗
+  5. M15e（隔離 run）：pip 無法下載 numpy
+  6. M15f（本機 base）：transformers 依賴鏈斷裂
+
+======================
+【M15f 技術發現】
+======================
+
+嘗試方案：docker run dustynv/l4t-ml:r36.4.0 + 本機 transformers
+
+關鍵發現：
+  ✅ Base image 有 torch 2.6.0 + CUDA
+  ✅ NumPy 1.26.4（已修正）
+  ❌ Base 無 transformers（需要運行時安裝）
+  ❌ 容器 pip 無法下載（DNS 解析失敗）
+  ❌ 本機 transformers 複製到容器後：依賴鏈斷（regex、soundfile 等）
+  ❌ 本機直接測試：HuggingFace 動態模塊加載失敗
+     - 錯誤：FileNotFoundError: layers.py in cache
+     - 原因：transformers 的 trust_remote_code=True 無法正確解析本機模型的自定義代碼
+
+======================
+【根本問題診斷】
+======================
+
+moondream2 使用 trust_remote_code=True，需要：
+  1. 完整的自定義代碼文件（已有）
+  2. 正確的 cache 目錄結構（transformers 動態模塊機制）
+  3. 所有 transformers 依賴（regex、soundfile 等）
+  4. 網路連接或離線 wheels
+
+此機遇到「三重障礙」：
+  1. Base image 缺 transformers + 依賴
+  2. 容器網路受限（pip 無法下載）
+  3. transformers 動態模塊機制與本機離線模型衝突
+
+======================
+【驗證項目】
+======================
+
+✅ 模型檔完整：17 個 .py、3.8GB safetensors、config.json、tokenizer
+✅ server_lazy.py：本機路徑正確、local_files_only=True、trust_remote_code=True
+✅ Dockerfile.m15：numpy==1.26.4、所有小依賴
+✅ torch/cuda：可用（CUDA True）
+✅ NumPy：1.26.4（修正完成）
+
+❌ transformers 完整棧：無法在本機或容器中完整安裝
+❌ 動態模塊機制：transformers 無法正確加載本機模型的自定義代碼
+❌ 網路環境：pip 無法下載（DNS 限制或隔離網路）
+
+======================
+【生產堆棧確認】
+======================
+
+✅ docker compose ps：8 個容器全 Up
+  - robotcar-asr-1：Up
+  - robotcar-brain-1：Up
+  - robotcar-perception-1：Up
+  - robotcar-tts-1：Up
+  - robotcar-vision-1：Up
+  - robotcar-webui-1：Up
+  - robotcar-ocr-1：Up
+  - robotcar-ollama-new-1：Up
+
+✅ Brain /health：true（正常）
+
+✅ 零生產影響：所有隔離測試都不影響正在運行的 compose 堆棧
+
+======================
+【最終結論】
+======================
+
+❌ 此機無法運行 on-device moondream2
+
+技術原因：
+  - Base image（l4t-ml:r36.4.0）缺 transformers 及其依賴
+  - 容器環境網路受限，pip 無法下載（DNS）
+  - transformers 的動態代碼加載機制與本機離線模型衝突
+  - 無法通過簡單的修改解決（涉及系統配置/網路/HF 框架設計）
+
+嘗試深度：
+  - 總計 9 次嘗試
+  - 涵蓋 build、docker run、本機執行等多個角度
+  - 每次都記錄具體技術錯誤（非「不行」）
+
+【建議】
+  1. 如必需 on-device VLM：建議用 TinyLLaVA 或其他無 trust_remote_code 的方案
+  2. 保持 ollama + llava 作為生產方案（已驗證穩定）
+  3. 系統當前配置已穩定可用，無需改動
+
