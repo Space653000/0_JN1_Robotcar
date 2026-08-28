@@ -53,7 +53,7 @@ services:
 
   tts:
     build: { context: ., dockerfile: docker/tts/Dockerfile }
-    image: robotcar-tts:0.2.0
+    image: robotcar-tts:latest
     environment:
       - TTS_ENGINE=piper
       - KOKORO_VOICE=${KOKORO_VOICE:-zf_xiaobei}
@@ -94,7 +94,7 @@ services:
 
   vision:
     build: { context: ., dockerfile: docker/vision/Dockerfile }
-    image: robotcar-vision:0.1.0
+    image: robotcar-vision:latest
     environment:
       - OLLAMA_URL=http://ollama-new:11434
       - VLM_MODEL=${VLM_MODEL:-llava}

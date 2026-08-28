@@ -1,0 +1,13 @@
+【M15b VLM moondream2 第二段 — 實測結果】
+時間：2026-08-28
+結論：build 失敗（4 次），已自動還原 bash ~/.jn1_restore.sh，系統回到 stable-senseVoice，未上線。
+
+失敗原因（依序）：
+  1) docker-compose.yml 未正確指向 Dockerfile.m15
+  2) 配置修改未生效（改用 sed/python 補）
+  3) 容器起得來但缺 transformers（base l4t-ml 未內含）
+  4) 反覆重建 → docker network 資源衝突
+
+還原後：ASR=sensevoice / TTS=piper / Brain=qwen2.5 / Vision=已還原。
+
+性質：本次為 build/管線設定錯，非模型不相容；moondream2 能否跑尚未證實或證偽。
