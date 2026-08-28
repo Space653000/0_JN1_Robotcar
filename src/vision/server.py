@@ -92,3 +92,8 @@ async def capture(file: UploadFile = File(...), prompt: str = None):
     except Exception as e:
         print(f"[vision] Inference failed: {e}", flush=True)
         return {"ok": False, "error": str(e)[:100]}
+
+if __name__ == "__main__":
+    import uvicorn
+    print("[vision] Starting FastAPI server...", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

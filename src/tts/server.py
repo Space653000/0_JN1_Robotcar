@@ -304,3 +304,8 @@ def say(req: Say):
         "call_total_ms": call_total_ms,
         "version": "3.0.0"
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    print("[tts] Starting FastAPI server...", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
