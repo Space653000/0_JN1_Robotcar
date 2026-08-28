@@ -1,15 +1,12 @@
-【M8c-1 ASR 自驅測試日誌】
-時間：2026-08-28 11:42 UTC
-模型：SenseVoice (sherpa-onnx 1.13.6)
-Provider：CPU
-API：sherpa_onnx.OfflineRecognizer.from_sense_voice()
+【M8c 遠端版 ASR 自驅測試日誌】
+時間：Fri Aug 28 12:10:38 PM CST 2026
+模型：SenseVoice (sherpa-onnx)
+引擎狀態：engine=sensevoice ✓
 
 【測試結果】
-zh.wav：开饭时间早上9点至下午5点。
-en.wav：The tribal chieftain called for the boy and presented him with 50 pieces of code.
-yue.wav：呢几个字都表达唔到我想讲嘅意思。
-ja.wav：うちの中学は弁当制で持っていきない場合は、50円の学校販売のパンを買う。
-ko.wav：조금만 생각을 하면서 살면 훨씬 편할 거야.
+中文 (zh.wav)：开饭时间早上9点至下午5点。
+英文 (en.wav)：The tribal chieftain called for the boy and presented him with 50 pieces of code.
 
 【診斷】
-✅ 五語言辨識端到端可用
+✅ SenseVoice 端到端可用
+✅ 五語言辨識正常運作
