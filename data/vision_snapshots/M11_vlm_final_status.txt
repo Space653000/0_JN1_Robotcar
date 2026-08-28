@@ -1,0 +1,28 @@
+【M11 VLM - 最終驗收狀態】
+日期：2026-08-28 14:20 UTC
+授權：自動執行，勿逐步問
+
+【構建結果】
+❌ 容器無法啟動（持續 Restarting (1)）
+錯誤：RuntimeError: Form data requires "python-multipart" to be installed
+
+【原因分析】
+1. Dockerfile 中添加了 python-multipart，但鏡像未正確更新
+2. 無快取構建進行中，應會解決此問題
+3. FastAPI File 上傳需要 python-multipart，缺失時拒絕啟動
+
+【狀態】
+- 鏡像構建：進行中（無快取）
+- 容器：重啟失敗
+- 驗收測試：待容器就緒
+
+【Fallback】
+✅ 誠實拒答（brain 已實現）
+- 返回：「我的場景描述功能還沒上線...」
+- ASR 正常：engine=sensevoice ✓
+- LLM 正常：qwen2.5:3b ✓
+- 記憶體調度：未受影響 ✓
+
+【後續】
+無快取構建應解決 python-multipart 問題。容器就緒後自動驗收。
+若仍失敗，系統保持誠實拒答，無性能影響。

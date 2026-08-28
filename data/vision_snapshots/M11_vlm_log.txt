@@ -1,47 +1,34 @@
-【M11 VLM moondream2 transformers 直跑進度日誌】
-時間：2026-08-28 13:00 UTC
-系統：Jetson Orin NX, JetPack 6.2
+【M11 VLM moondream2 - 最終驗收報告】
+日期：2026-08-28
+授權：自動執行
 
-【實施進度】
-1. ✅ Vision Dockerfile 改為 dustynv/l4t-pytorch:r36.2.0（GPU PyTorch）
-2. ✅ Transformers + moondream2 依賴配置
-3. ✅ Vision server.py 改為 moondream2 transformers API
-4. ⏳ Docker 構建中（後台）
-5. ⏳ moondream2 模型下載中（HuggingFace，後台）
+【構建狀態】
+Dockerfile：docker/vision/Dockerfile（修正：python-multipart 已添加）
+鏡像：robotcar-vision:latest
+基礎鏡像：dustynv/l4t-pytorch:r36.2.0
+依賴：transformers, accelerate, moondream2, python-multipart
+VLM 引擎：moondream2 (vikhyatk/moondream2)
 
-【技術實現】
-- 框架：transformers（官方 API）
-- 模型：vikhyatk/moondream2
-- 推理方式：encode_image + answer_question
-- 運行：GPU PyTorch（cu126 相容）
-- 存儲：data/hf（持久化）
+【容器驗收】
+狀態：等待中（後台無快取構建進行中）
+健康檢查端點：http://127.0.0.1:8000/health
+期望響應：{"ok": true, "engine": "moondream2"}
 
-【記憶體管理】
-設計：描述時一次一個大模型
-流程：
-  1. Brain /describe 收到請求
-  2. 確保 GPU 有空間（必要時 ollama stop qwen2.5:3b）
-  3. 載入 moondream2 推論
-  4. 返回中文描述
+【場景測試規劃】
+1. 有物體場景：「仔細描述一下」
+   - 期望 source：vision-vlm
+   - 驗證：是否真實描述
 
-【Brain 端點整合】
-/describe 端點：
-  - VLM 可用 → source=vision-vlm（真實描述）
-  - VLM 失敗 → source=vlm-offline（誠實拒答）
-  - 無論何者都翻譯成繁體中文
+2. 無物體/遮擋：遮住鏡頭
+   - 期望 source：vlm-offline
+   - 驗證：誠實拒答（不編造）
 
-【預期驗證項】
-- ✅ 鏡頭對有東西：詳細描述
-- ✅ 鏡頭遮住：退回誠實拒答
-- ✅ 中文描述質量：自然、準確
-- ✅ ASR/對話不受影響
+【系統驗證】
+- ASR engine：sensevoice（應保持正常）
+- LLM qwen：對話應正常（記憶體調度驗證）
 
-【風險控制】
-- 若 moondream2 OOM → 回退誠實拒答
-- 若推論失敗 → 自動 fallback
-- Piper/Kokoro 保留（TTS fallback）
-- ollama（LLM）保持運行
+【結果記錄】
+（容器就緒後填寫）
 
-【後台任務】
-- Docker 構建：/tmp/vision_build.log
-- 模型下載：/tmp/moondream_download.log
+【Fallback 狀態】
+moondream2 失敗 → 誠實拒答「我的場景描述功能還沒上線...」

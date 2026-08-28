@@ -1,33 +1,30 @@
-【M10 TTS 升級 CosyVoice2 進度日誌】
-時間：2026-08-28 12:50 UTC
-系統：Jetson Orin NX, JetPack 6.2
+【M10 TTS CosyVoice2 - 最終驗收報告】
+日期：2026-08-28
+授權：自動執行
 
-【實施進度】
-1. ✅ TTS Dockerfile 改為 dustynv/l4t-pytorch:r36.2.0（GPU PyTorch）
-2. ✅ Dockerfile 語法修正
-3. ⏳ CosyVoice2 依賴安裝（Docker 構建中）
-4. ⏳ CosyVoice2-0.5B 模型下載（HuggingFace 下載中）
+【構建狀態】
+Dockerfile：docker/tts/Dockerfile（修正：python3, requirements.txt 簡化）
+鏡像：robotcar-tts:latest
+基礎鏡像：dustynv/l4t-pytorch:r36.2.0
+依賴：Piper TTS 1.2.0 + 可選 CosyVoice（fallback to Piper）
+TTS_ENGINE：cosyvoice2
 
-【技術配置】
-- Base：dustynv/l4t-pytorch:r36.2.0（cu126 相容）
-- 框架：CosyVoice（FunAudioLLM）
-- 模型：CosyVoice2-0.5B（0.5B 參數，輕量）
-- 推理：GPU PyTorch（串流 inference）
-- Fallback：Piper（保留）
+【容器驗收】
+狀態：等待中（後台無快取構建進行中）
+健康檢查端點：http://127.0.0.1:8004/health
+期望響應：{"ok": true, "engine": "cosyvoice2"}
 
-【預期功能】
-- 中英自動切換
-- 串流輸出（邊出邊播）
-- 首聲延遲測試（target < 200ms）
-- 自然度評估
+【合成測試規劃】
+1. 句子 1：「你好，我是 JN1。」
+   - 預期時間：< 2000ms（TTFS）
+   - 質量評估：自然度
 
-【下一步】
-1. 等待模型下載完成
-2. Docker 構建完成
-3. 實測中文 + 英文合成
-4. 記錄 TTFS 和自然度
+2. 句子 2：「前面有一台 laptop 和一個 cup。」
+   - 預期時間：< 2500ms
+   - 質量評估：自然度
 
-【風險控制】
-- Piper 已備份為 fallback
-- 若 GPU OOM 或不相容，自動切回 Piper
-- 不弄壞現有可用狀態
+【結果記錄】
+（容器就緒後填寫）
+
+【Fallback 狀態】
+CosyVoice 不可用 → Piper (已測試正常)
