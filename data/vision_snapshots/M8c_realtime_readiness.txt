@@ -1,0 +1,22 @@
+【M8c-3 實時麥克風測試準備完成】
+時間：2026-08-28 11:48 UTC
+
+【系統檢查清單】
+✅ SenseVoice ASR：engine=sensevoice
+✅ TTS 引擎：Piper (1839ms TTFS)
+✅ Brain 路由：/talk 端點開放
+✅ Hotwords：JN1, Kokoro, Jetson
+✅ XVF3800 麥克風：連接中
+
+【測試流程】
+1. 用戶在麥克風前說出測試句子 3 條
+2. Brain POST /talk?seconds=5
+3. ASR 回傳轉錄文字 → TTS 朗讀
+4. 記錄識別準確率 + 延遲時間
+
+【預期結果】
+- SenseVoice 五語言辨識確認可用
+- 延遲時間：ASR ~500ms + TTS ~2000ms = 總計 ~2.5s
+- 準確率：Mandarin Chinese 預期 >90%
+
+等待用戶遠端參與（AnyDesk）。
