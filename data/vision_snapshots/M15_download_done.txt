@@ -1,0 +1,4 @@
+时间：2026-08-28 18:28:25
+base image：dustynv/l4t-ml:r36.4.0
+模型位置：./data/hf/moondream2
+模型大小：3.6G
