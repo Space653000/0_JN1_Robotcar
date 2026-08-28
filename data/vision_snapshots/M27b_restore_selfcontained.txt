@@ -1,3 +1,25 @@
+# M27b 還原腳本自給自足 Fri Aug 28 04:30:22 PM UTC 2026
+
+【問題】
+  data/* 被 .gitignore 忽略
+  → data/MODELS_REQUIRED.txt 無法進 repo
+  → 還原腳本引用外部依賴失效
+
+【解決】
+  模型清單寫死在還原腳本內
+  → 腳本完全自給自足
+  → 不依賴任何外部檔
+
+
+--- 驗證：腳本內模型清單 ---
+4:MODELS="qwen2.5:3b llava"   # ← 必要模型寫死於此，不依賴外部被 ignore 的檔
+
+--- 驗證：不再引用外部 MODELS_REQUIRED ---
+✓ 無外部依賴（自給自足）
+
+--- 腳本內容驗證 ---
+25 /home/jetson/.jn1_restore.sh
+完整腳本：
 #!/bin/bash
 set -e
 cd /home/jetson/0_JN1_Robotcar
