@@ -1,93 +1,94 @@
-import os, base64, cv2, requests
-from fastapi import FastAPI
+"""robotcar-vision: moondream2 via transformers（GPU）
 
-app = FastAPI(title="robotcar-vision", version="0.2.0-vision-vlm")
+M11：不靠 ollama，用 transformers 直跑 moondream2
+- 模型：vikhyatk/moondream2（官方）
+- 推理：GPU PyTorch
+- 記憶體：必要時停 qwen，一次一個大模型
+"""
+import os
+import time
+from fastapi import FastAPI, UploadFile, File
+from PIL import Image
+import io
+import torch
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama-new:11434")
-VLM_MODEL = os.environ.get("VLM_MODEL", "moondream")
-HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "180"))
+app = FastAPI(title="robotcar-vision", version="3.0.0")
 
-def _grab_jpeg_b64():
-    """Get frame from perception service (single camera owner)."""
+_moondream = None
+MODEL_PATH = "/data/hf/moondream2"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+def _load_moondream():
+    """載入 moondream2（transformers API）"""
+    global _moondream
+    if _moondream is not None:
+        return True
+    
     try:
-        r = requests.get("http://perception:8000/frame.jpg", timeout=10)
-        if r.status_code == 200:
-            # M6-2：perception /frame.jpg 返回 JPEG 二進制數據，需要轉為 base64
-            if r.headers.get("content-type") == "image/jpeg":
-                # 直接將 JPEG 二進制轉為 base64
-                return base64.b64encode(r.content).decode()
-            else:
-                # 嘗試 JSON 格式（如果 perception 返回 JSON）
-                try:
-                    data = r.json()
-                    if data.get("ok"):
-                        return data.get("frame_b64")
-                except:
-                    pass
+        print("[vision] Loading moondream2 from transformers...", flush=True)
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        
+        # 檢查本地模型或線上拉取
+        tokenizer = AutoTokenizer.from_pretrained(
+            "vikhyatk/moondream2", 
+            trust_remote_code=True,
+            cache_dir="/data/hf"
+        )
+        
+        model = AutoModelForCausalLM.from_pretrained(
+            "vikhyatk/moondream2",
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            device_map={"": DEVICE},
+            cache_dir="/data/hf"
+        )
+        
+        _moondream = {"tokenizer": tokenizer, "model": model}
+        print("[vision] moondream2 loaded successfully!", flush=True)
+        return True
     except Exception as e:
-        print(f"[vision] Failed to get frame from perception: {e}")
-
-    # Fallback: try direct camera access (only if perception is down)
-    try:
-        cap = cv2.VideoCapture(0)
-        ok, frame = cap.read()
-        cap.release()
-        if ok and frame is not None:
-            ok, buf = cv2.imencode(".jpg", frame)
-            return base64.b64encode(buf).decode() if ok else None
-    except Exception as e:
-        print(f"[vision] Direct camera access failed: {e}")
-
-    return None
+        print(f"[vision] Failed to load moondream2: {e}", flush=True)
+        return False
 
 @app.get("/health")
 def health():
-    return {"ok": True, "mode": "vision-vlm (real-time VLM inference)", "vlm_model": VLM_MODEL}
+    """健康檢查"""
+    if _load_moondream():
+        return {"ok": True, "engine": "moondream2"}
+    else:
+        return {"ok": False, "engine": "moondream2", "error": "Model not loaded"}
 
 @app.post("/capture")
-def capture(prompt: str = "Describe this scene briefly in one sentence, list main objects."):
-    """Grab camera frame + real VLM inference via ollama (moondream).
-    Returns English description; brain layer handles translation to Traditional Chinese.
-    Note: prompt should be concise English; VLM output is English for translation."""
-    img = _grab_jpeg_b64()
-    if img is None:
-        return {"ok": False, "error": "camera read failed"}
-
+async def capture(file: UploadFile = File(...), prompt: str = None):
+    """從上傳的圖片生成描述"""
+    
+    if not _load_moondream():
+        return {"ok": False, "error": "moondream2 not available"}
+    
     try:
-        resp = requests.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={
-                "model": VLM_MODEL,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt,
-                        "images": [img]
-                    }
-                ],
-                "stream": False
-            },
-            timeout=HTTP_TIMEOUT
+        # 讀取圖片
+        img_data = await file.read()
+        image = Image.open(io.BytesIO(img_data)).convert("RGB")
+        
+        # 預設提示
+        if not prompt:
+            prompt = "用中文詳細描述這個畫面。"
+        
+        print(f"[vision] Inferencing: {prompt}", flush=True)
+        
+        # moondream2 推論
+        tokenizer = _moondream["tokenizer"]
+        model = _moondream["model"]
+        
+        # 官方 API：encode_image + answer_question
+        image_embeds = model.encode_image(image)
+        answer = model.answer_question(
+            image_embeds,
+            prompt,
+            tokenizer
         )
-
-        if resp.status_code != 200:
-            return {"ok": False, "error": f"ollama error {resp.status_code}"}
-
-        data = resp.json()
-        description = data.get("message", {}).get("content", "").strip()
-
-        if description:
-            return {
-                "ok": True,
-                "image_b64": img,
-                "description": description,
-                "description_lang": "en",
-                "vlm_model": VLM_MODEL,
-                "source": "ollama-vlm"
-            }
-        else:
-            return {"ok": False, "error": "empty response from VLM"}
-    except requests.Timeout:
-        return {"ok": False, "error": "VLM timeout"}
+        
+        return {"ok": True, "description": answer}
     except Exception as e:
+        print(f"[vision] Inference failed: {e}", flush=True)
         return {"ok": False, "error": str(e)[:100]}
