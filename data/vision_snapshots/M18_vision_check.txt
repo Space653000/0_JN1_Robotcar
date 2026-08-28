@@ -1,0 +1,28 @@
+【M18 vision 容器真實狀態診斷】
+時間：2026-08-28 23:20 UTC
+目的：確認「主機 curl 8002 無回應」是埠映射問題還是容器掛機
+
+======================
+【1. docker compose ps vision】
+======================
+
+
+NAME                IMAGE                    COMMAND                  SERVICE   CREATED             STATUS             PORTS
+robotcar-vision-1   robotcar-vision:latest   "uvicorn server:app …"   vision    About an hour ago   Up About an hour   8000/tcp
+【3. Brain 內網 health 回應】
+內網也無回應
+【4. Vision 自檢回應】
+容器內自檢無回應
+【5. Brain 綜合 health】
+{"ok":true,"services":{"ollama":true,"asr":true,"tts":true,"perception":true,"vision":true,"ocr":true,"depth":false},"llm":"qwen2.5:3b","mem_turns":8,"llm_warmed":false}
+
+======================
+【診斷判定】
+======================
+
+❌ Brain 內網也摸不到 vision → vision 可能掛了
+❌ Vision 自檢失敗
+✅ Brain 綜合 health 顯示 vision=true
+【結論】
+❌ Vision 容器掛機
+需要進一步診斷或重啟
