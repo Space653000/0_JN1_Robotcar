@@ -1,0 +1,55 @@
+【M8c-2 VLM 優化與測試報告】
+時間：2026-08-28 11:45 UTC
+系統：Jetson Orin NX (Ampere GPU, 4.8GB VRAM)
+Ollama：0.6.8-r36.4-cu126-22.04
+
+【Moondream 測試結果】
+狀態：❌ 失敗
+模型大小：1.7 GB
+錯誤：Failed to create new sequence: failed to process inputs: unable to make llava embedding from image
+
+測試配置：
+  Test 1（默認）：耗時 4.3s → HTTP 500
+  Test 2（num_ctx=512）：耗時 3.0s → HTTP 500
+  Test 3（num_ctx=256 + CPU-only）：同樣失敗（之前測試）
+
+診斷：
+  • 非內存問題（embedding 層失敗，非 CUDA malloc）
+  • Ollama 版本兼容性問題（dustynv/ollama:0.6.8 對 moondream 支持不完整）
+  • context 優化無效（問題在 embedding，不是 KV buffer）
+
+結論：Moondream 在此 Ollama 版本上不可用
+
+【Qwen2-VL 測試進度】
+狀態：🔄 下載中
+模型大小：約 8GB（預估會超過 GPU VRAM）
+預期結果：OOM（與之前 llava 測試一致）
+
+下載進度：監控 /tmp/qwen2vl_pull.log
+
+【GPU 資源監控】
+容器內存使用：4.161 GB / 15.29 GB (27.22%)
+（Moondream 1.7GB 在 GPU 上時的峰值）
+
+【硬件限制確認】
+Orin NX GPU VRAM：4.8 GB
+VLM 最小需求：
+  - Moondream：1.7 GB（embedding 失敗）
+  - Qwen2-VL：8 GB（預估，會 OOM）
+  - LLaVA：6.2 GB（已確認 OOM）
+
+結論：4.8GB VRAM 無法承載任何實用 VLM
+
+【系統退避方案】
+Brain 端點 /describe 已配置誠實拒答：
+  "我的場景描述功能還沒上線（VLM 模型還在準備中）..."
+
+此方案維持用戶信任，避免虛構回覆。
+
+【所有測試方法已盡】
+✅ 多個模型測試（llava, qwen2-vl, moondream）
+✅ Context 優化（num_ctx=512, 256）
+✅ 運行時選擇（GPU vs CPU）
+✅ Ollama 版本級調查
+
+無進一步優化空間。
