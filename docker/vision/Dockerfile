@@ -1,19 +1,10 @@
-FROM dustynv/l4t-pytorch:r36.2.0
-
-WORKDIR /app
-
-# 安裝基礎工具（git 足夠）
+FROM python:3.10-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    && rm -rf /var/lib/apt/lists/* || true
-
-# 安裝 moondream2 + transformers 依賴（使用鏡像源）
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
-    fastapi uvicorn python-multipart transformers accelerate pillow einops \
-    2>&1 || pip install fastapi uvicorn python-multipart transformers accelerate pillow einops
-
-# 複製 Vision 服務代碼
-COPY src/vision/server.py .
-
+      libgl1 libglib2.0-0 ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY docker/vision/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY src/vision/ /app/
 EXPOSE 8000
-CMD ["python3", "server.py"]
+CMD ["uvicorn","server:app","--host","0.0.0.0","--port","8000"]
