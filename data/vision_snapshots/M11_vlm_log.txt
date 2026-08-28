@@ -32,3 +32,7 @@ VLM 引擎：moondream2 (vikhyatk/moondream2)
 
 【Fallback 狀態】
 moondream2 失敗 → 誠實拒答「我的場景描述功能還沒上線...」
+【驗收結果】
+時間：2026-08-28 14:11:25
+Engine：unknown
+健康狀態：{"ok":false}

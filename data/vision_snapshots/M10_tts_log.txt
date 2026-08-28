@@ -28,3 +28,7 @@ TTS_ENGINE：cosyvoice2
 
 【Fallback 狀態】
 CosyVoice 不可用 → Piper (已測試正常)
+【驗收結果】
+時間：2026-08-28 14:11:25
+Engine：unknown
+健康狀態：{"ok":false}
