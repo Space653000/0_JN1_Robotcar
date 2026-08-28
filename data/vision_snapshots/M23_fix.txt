@@ -1,0 +1,59 @@
+# M23 一次修好 持久化+OOM Fri Aug 28 03:58:40 PM UTC 2026
+
+## 1) 找模型現在存哪(容器內)
+模型目錄=
+(查詢失敗)
+
+## 2) 模型從容器複製到本機(備份,免重下載)
+複製中...
+time="2026-08-28T23:59:00+08:00" level=warning msg="ignored xattrs in archive: underlying filesystem doesn't support them" errors="[lsetxattr /home/jetson/0_JN1_Robotcar/data/_ollama_migrate/usr/lib/aarch64-linux-gnu/gstreamer1.0/gstreamer-1.0/gst-ptp-helper: xattr \"security.capability\": operation not permitted]"
+備份大小：
+16G	data/_ollama_migrate
+
+## 3) 改 compose 掛載點 /root/.ollama -> /data,grep 驗證
+修改前：
+13:  ollama-new:
+22:      - ./data/ollama-new:/root/.ollama
+修改後：
+22:      - ./data/ollama-new:/data
+
+## 4) 模型放進本機 volume 的正確位置 + 建 logs
+複製模型檔...
+volume 大小：
+16G	data/ollama-new/models
+
+## 5) 只重建 ollama-new
+停止舊容器...
+ Network robotcar_default Removing 
+ Network robotcar_default Resource is still in use 
+啟動新容器...
+ Container robotcar-ollama-new-1 Creating 
+ Container robotcar-ollama-new-1 Created 
+ Container robotcar-ollama-new-1 Starting 
+ Container robotcar-ollama-new-1 Started 
+容器狀態：
+NAME                    IMAGE                                    COMMAND                  SERVICE      CREATED          STATUS          PORTS
+robotcar-ollama-new-1   dustynv/ollama:0.6.8-r36.4-cu126-22.04   "/bin/bash -c '/star…"   ollama-new   11 seconds ago   Up 10 seconds   11434/tcp
+
+## 6) 驗證模型還在(從持久 volume 讀)
+ollama list 結果：
+NAME    ID    SIZE    MODIFIED 
+
+## 7) ★真推理(fresh 容器,OOM 好了沒)
+推理測試：
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 135 MB/1.9 GB   11 MB/s   2m36s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 137 MB/1.9 GB   11 MB/s   2m36s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 137 MB/1.9 GB   11 MB/s   2m36s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 139 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 140 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 141 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 142 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 144 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   7% ▕█                 ▏ 144 MB/1.9 GB   11 MB/s   2m35s[K[?25h[?2026l[?2026h[?25l[A[1Gpulling manifest [K
+pulling 5ee4f07cdb9b:   8% ▕█                 ▏ 146 MB/1.9 GB   11 MB/s   2m34s[K[?25h[?2026l
+## 8) 持久化確認 + brain health
+volume 最終大小：
+16G	data/ollama-new
+Brain 健康檢查：
+{"ok":true,"services":{"ollama":true,"asr":true,"tts":true,"perception":true,"vision":true,"ocr":true,"depth":false},"llm":"qwen2.5:3b","mem_turns":8,"llm_warmed":true}
+【清理完成】

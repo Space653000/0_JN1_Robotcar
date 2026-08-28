@@ -1,0 +1,54 @@
+# M23 失敗報告  Fri Aug 28 04:02:52 PM UTC 2026
+
+【執行摘要】
+目標：修復模型持久化 + 解決 OOM 問題
+結果：❌ 失敗，導致模型完全遺失
+
+【失敗原因】
+1. docker cp 複製時產生雙層目錄結構
+   預期：/data/models/ollama/models/
+   實際：/data/models/data/models/ollama/models/
+
+2. ollama 無法識別嵌套結構，開始新下載
+
+3. 企圖修復時刪除目錄，遇到權限問題
+   - 容器仍在運行，正在寫入檔案
+   - 部分檔案被容器鎖定
+
+4. 回滾 compose 時已刪除本機 volume
+   - data/ollama-new/models/* 被 rm -rf 清空
+   - 無法恢復
+
+【當前狀態】
+✗ docker-compose.yml 已回滾（原掛載點）
+✗ volume 已清空（模型遺失）
+✗ ollama 容器正在重新下載模型
+✓ 容器運行中但無模型
+
+【系統狀態檢查】
+NAME                    IMAGE                                    COMMAND                  SERVICE      CREATED          STATUS          PORTS
+robotcar-asr-1          robotcar-asr:0.2.0                       "uvicorn server:app …"   asr          2 hours ago      Up 2 hours      127.0.0.1:8003->8000/tcp
+robotcar-brain-1        robotcar-brain:0.2.0                     "uvicorn server:app …"   brain        2 hours ago      Up 2 hours      127.0.0.1:21500->8000/tcp
+robotcar-ocr-1          robotcar-ocr:0.1.0                       "uvicorn server:app …"   ocr          35 hours ago     Up 35 hours     127.0.0.1:8002->8000/tcp
+robotcar-ollama-new-1   dustynv/ollama:0.6.8-r36.4-cu126-22.04   "/bin/bash -c '/star…"   ollama-new   52 seconds ago   Up 35 seconds   11434/tcp
+robotcar-perception-1   robotcar-perception:1.0.0                "uvicorn server:app …"   perception   2 hours ago      Up 2 hours      127.0.0.1:8001->8000/tcp
+robotcar-tts-1          robotcar-tts:latest                      "uvicorn server:app …"   tts          2 hours ago      Up 2 hours      127.0.0.1:8004->8000/tcp
+robotcar-vision-1       robotcar-vision:latest                   "uvicorn server:app …"   vision       2 hours ago      Up 2 hours      8000/tcp
+robotcar-webui-1        robotcar-webui:1.0.0                     "uvicorn server:app …"   webui        2 hours ago      Up 2 hours      0.0.0.0:8080->8000/tcp
+
+【ollama 日誌】
+ollama-new-1  | 
+ollama-new-1  | ollama server is now started, and you can run commands here like 'ollama run gemma3'
+ollama-new-1  | 
+ollama-new-1  | 2026/08/28 16:02:17 routes.go:1233: INFO server config env="map[CUDA_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: NO_PROXY: OLLAMA_CONTEXT_LENGTH:4096 OLLAMA_DEBUG:false OLLAMA_FLASH_ATTENTION:false OLLAMA_GPU_OVERHEAD:0 OLLAMA_HOST:http://0.0.0.0:11434 OLLAMA_INTEL_GPU:false OLLAMA_KEEP_ALIVE:10m0s OLLAMA_KV_CACHE_TYPE: OLLAMA_LLM_LIBRARY:cuda_ OLLAMA_LOAD_TIMEOUT:5m0s OLLAMA_MAX_LOADED_MODELS:1 OLLAMA_MAX_QUEUE:512 OLLAMA_MODELS:/data/models/ollama/models OLLAMA_MULTIUSER_CACHE:false OLLAMA_NEW_ENGINE:false OLLAMA_NOHISTORY:false OLLAMA_NOPRUNE:false OLLAMA_NUM_PARALLEL:0 OLLAMA_ORIGINS:[http://localhost https://localhost http://localhost:* https://localhost:* http://127.0.0.1 https://127.0.0.1 http://127.0.0.1:* https://127.0.0.1:* http://0.0.0.0 https://0.0.0.0 http://0.0.0.0:* https://0.0.0.0:* app://* file://* tauri://* vscode-webview://* vscode-file://*] OLLAMA_SCHED_SPREAD:false ROCR_VISIBLE_DEVICES: http_proxy: https_proxy: no_proxy:]"
+ollama-new-1  | time=2026-08-28T16:02:17.746Z level=INFO source=images.go:463 msg="total blobs: 0"
+ollama-new-1  | time=2026-08-28T16:02:17.746Z level=INFO source=images.go:470 msg="total unused blobs removed: 0"
+ollama-new-1  | time=2026-08-28T16:02:17.747Z level=INFO source=routes.go:1300 msg="Listening on [::]:11434 (version 0.6.8)"
+ollama-new-1  | time=2026-08-28T16:02:17.748Z level=INFO source=gpu.go:217 msg="looking for compatible GPUs"
+ollama-new-1  | time=2026-08-28T16:02:17.884Z level=INFO source=types.go:130 msg="inference compute" id=GPU-7d46452f-c9d8-5afb-b1f5-4e1389141f87 library=cuda variant=jetpack6 compute=8.7 driver=12.6 name=Orin total="15.3 GiB" available="6.0 GiB"
+ollama-new-1  | [GIN] 2026/08/28 - 16:02:21 | 200 |    1.331393ms |      172.18.0.7 | GET      "/api/tags"
+ollama-new-1  | [GIN] 2026/08/28 - 16:02:27 | 200 |     384.906µs |       127.0.0.1 | HEAD     "/"
+ollama-new-1  | [GIN] 2026/08/28 - 16:02:27 | 200 |     150.883µs |       127.0.0.1 | GET      "/api/tags"
+ollama-new-1  | [GIN] 2026/08/28 - 16:02:27 | 200 |      47.649µs |       127.0.0.1 | HEAD     "/"
+ollama-new-1  | [GIN] 2026/08/28 - 16:02:27 | 404 |     315.368µs |       127.0.0.1 | POST     "/api/show"
+ollama-new-1  | time=2026-08-28T16:02:28.668Z level=INFO source=download.go:177 msg="downloading 5ee4f07cdb9b in 16 120 MB part(s)"
