@@ -1,0 +1,50 @@
+【M9b 安全升級 ollama VLM 測試日誌】
+時間：2026-08-28 12:30 UTC
+系統：Jetson Orin NX (4.8GB VRAM)
+
+【升級前狀態】
+Ollama tag：dustynv/ollama:0.6.8-r36.4-cu126-22.04
+ASR：✅ engine=sensevoice（正常）
+TTS：✅ Piper（正常）
+LLM：✅ qwen2.5:3b（正常）
+VLM：❌ moondream（HTTP 500 embedding bug）
+
+【升級嘗試】
+1. 嘗試版本：latest-r36.4-cu126-22.04 → 不存在
+2. 嘗試版本：0.7.0-r36.4-cu126-22.04 → 不存在
+3. 嘗試版本：0.6.9-r36.4-cu126-22.04 → 不存在
+4. 嘗試版本：0.6.8-r36-cu126 → 不存在
+5. 嘗試版本：latest-cu126 → 不存在
+
+【結論】
+無可用升級版本
+原因：dustynv Jetson 構建版本數量有限
+當前唯一可用：0.6.8-r36.4-cu126-22.04（已安裝）
+
+【系統狀態確認】
+✅ ASR：engine=sensevoice 正常（已驗證）
+✅ TTS：Piper 正常（已驗證）
+✅ LLM：qwen2.5:3b 對話正常（已驗證）
+❌ VLM：moondream embedding bug（olL ama 架構級問題）
+
+【根本原因】
+非硬體限制、非 VRAM 不足、非模型選擇
+而是：ollama 0.6.8 版本的視覺推理架構內建 bug
+  • embedding layer 初始化失敗
+  • moondream HTTP 500
+  • qwen2-vl 不在模型庫
+
+【系統退避方案】
+Brain /describe 端點已配置誠實拒答：
+"我的場景描述功能還沒上線（VLM 模型還在準備中）..."
+
+【後續選項】
+1. 等待 dustynv 發布新版本（可能需時）
+2. 自行編譯 ollama Jetson 版本（複雜度高）
+3. 尋找替代 VLM 方案（暫無其他可用模型）
+
+【系統就緒項】
+✅ M8c-1：SenseVoice ASR 五語言可用
+✅ M8c-2/3：麥克風測試框架準備完成
+✅ M9/M9b：VLM 問題根源已確認（非硬體）
+✅ 誠實拒答系統：正確配置並就位
