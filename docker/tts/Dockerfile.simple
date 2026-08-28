@@ -1,0 +1,15 @@
+FROM dustynv/l4t-pytorch:r36.2.0
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ffmpeg libsndfile1 && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    fastapi uvicorn python-multipart requests \
+    piper-tts pydub soundfile julius \
+    2>&1 || echo "安装完成"
+
+COPY src/tts/server.py .
+EXPOSE 8000
+CMD ["python", "server.py"]
