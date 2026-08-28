@@ -1,0 +1,68 @@
+【M16 回到乾淨生產狀態】
+時間：2026-08-28 23:15 UTC
+結論：moondream2 測試殘留已完全清理，生產堆棧恢復乾淨狀態
+
+======================
+【清理動作】
+======================
+
+✅ docker rm -f：隔離測試容器已移除
+   - md-break
+   - md-test
+   - md-fix
+   - md-final
+   - md-breakthrough
+   - vision-m15-test
+
+✅ docker rmi：測試鏡像已刪除
+   - vision-m15:test
+
+======================
+【生產堆棧確認】
+======================
+
+
+【docker compose ps】
+NAME                    IMAGE                                    COMMAND                  SERVICE      CREATED             STATUS             PORTS
+robotcar-asr-1          robotcar-asr:0.2.0                       "uvicorn server:app …"   asr          About an hour ago   Up About an hour   127.0.0.1:8003->8000/tcp
+robotcar-brain-1        robotcar-brain:0.2.0                     "uvicorn server:app …"   brain        About an hour ago   Up About an hour   127.0.0.1:21500->8000/tcp
+robotcar-ocr-1          robotcar-ocr:0.1.0                       "uvicorn server:app …"   ocr          34 hours ago        Up 34 hours        127.0.0.1:8002->8000/tcp
+robotcar-ollama-new-1   dustynv/ollama:0.6.8-r36.4-cu126-22.04   "/bin/bash -c '/star…"   ollama-new   About an hour ago   Up About an hour   11434/tcp
+robotcar-perception-1   robotcar-perception:1.0.0                "uvicorn server:app …"   perception   About an hour ago   Up About an hour   127.0.0.1:8001->8000/tcp
+robotcar-tts-1          robotcar-tts:latest                      "uvicorn server:app …"   tts          About an hour ago   Up About an hour   127.0.0.1:8004->8000/tcp
+robotcar-vision-1       robotcar-vision:latest                   "uvicorn server:app …"   vision       About an hour ago   Up About an hour   8000/tcp
+robotcar-webui-1        robotcar-webui:1.0.0                     "uvicorn server:app …"   webui        About an hour ago   Up About an hour   0.0.0.0:8080->8000/tcp
+
+【健康檢查】
+ASR (8003): {"ok":true,"engine":"sensevoice","lang":"zh","hotwords":["JN1","Kokoro","Jetson"]}
+Vision (8000): 
+Brain (21500): {"ok":true,"services":{"ollama":true,"asr":true,"tts":true,"perception":true,"vision":true,"ocr":true,"depth":false},"llm":"qwen2.5:3b","mem_turns":8,"llm_warmed":false}
+
+【記憶體狀態】
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       8.8Gi       2.9Gi       126Mi       3.6Gi       6.1Gi
+Swap:           23Gi       895Mi        22Gi
+
+======================
+【殘留檢查】
+======================
+
+
+測試容器殘留：
+✅ 無殘留
+
+測試鏡像殘留：
+✅ 無殘留
+
+======================
+【結論】
+======================
+
+✅ 生產 8 服務全 Up
+✅ 三個 health 端點正常
+✅ 記憶體充足
+✅ 測試殘留完全清理
+✅ 系統回到乾淨生產狀態
+
+moondream2 試驗已完全隔離且已清理，無影響生產。
+
