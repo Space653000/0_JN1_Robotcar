@@ -1,0 +1,32 @@
+# M27 重設真恢復點 Fri Aug 28 04:27:52 PM UTC 2026
+
+## 1) 必要模型清單進 repo
+# JN1 必要 ollama 模型（restore 時若缺自動 re-pull）
+qwen2.5:3b
+llava
+
+## 2) 改寫還原腳本(git 還原 + 模型 re-pull + 健康)
+還原腳本已寫，並存一份到 ops/jn1_restore.sh
+還原腳本內容預覽：
+#!/bin/bash
+set -e
+cd /home/jetson/0_JN1_Robotcar
+echo "【JN1 還原】$(date '+%F %T')"
+echo "[1] 取 tag"
+git fetch --tags 2>&1 | tail -1
+echo "[2] 檢出穩定點(docker/src/compose)"
+git checkout stable-senseVoice -- docker src docker-compose.yml
+echo "[3] 重建容器"
+docker compose up -d --build 2>&1 | tail -4
+sleep 10
+echo "[4] 檢查/補模型(持久化於 data/ollama-new)"
+for m in $(grep -v '^#' data/MODELS_REQUIRED.txt); do
+  if docker exec robotcar-ollama-new-1 ollama show "$m" >/dev/null 2>&1; then 
+    echo "  ✓ $m 已在"
+  else 
+    echo "  ✗ $m 缺，re-pull..."
+    docker exec robotcar-ollama-new-1 ollama pull "$m" 2>&1 | tail -2
+  fi
+done
+
+## 3) 提交良好狀態 + 把 stable-senseVoice tag 移到這
