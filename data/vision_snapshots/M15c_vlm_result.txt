@@ -1,0 +1,75 @@
+【M15c VLM moondream2 最後一擊 — 最終報告】
+時間：2026-08-28 21:00
+結論：永久擱置 on-device moondream2，已自動還原。
+
+======================
+【失敗原因（根本）】
+======================
+
+NumPy 版本衝突（系統級別，無代碼解決方案）
+
+錯誤信息：
+  "A module that was compiled using NumPy 1.x cannot be run in
+   NumPy 2.2.6 as it may crash."
+
+詳情：
+  - dustynv/l4t-ml:r36.4.0 base image 包含 NumPy 2.2.6
+  - PyTorch/transformers 編譯於 NumPy 1.x
+  - 版本不相容 → 無法初始化 PyTorch
+
+======================
+【已驗證的條件】
+======================
+
+✅ 模型文件：完整（config.json、17個.py、model.safetensors、tokenizer）
+✅ server_lazy.py：正確（本機路徑 + local_files_only=True）
+✅ Dockerfile.m15：正確（離線模式環境變量 + 卷掛載）
+✅ docker-compose.yml：正確（所有配置完備）
+✅ 容器運行：正常（/health ok，engine=moondream2）
+
+❌ 依賴版本：衝突（NumPy 1.x vs 2.2.6）
+
+======================
+【嘗試次數】
+======================
+
+M15 第一段：下載完成 ✅
+M15 第二段（b）：build 失敗 4 次，自動還原
+M15 第三段（c）：
+  - 檢查模型文件 ✅
+  - 修改 server_lazy.py ✅
+  - 修改 docker-compose.yml ✅ (修正 2 次)
+  - 重建容器 ✅
+  - 模型加載 ❌（NumPy 衝突）
+
+總計：6 次嘗試
+
+======================
+【系統狀態】
+======================
+
+✅ 已執行 bash ~/.jn1_restore.sh
+✅ 所有服務已還原
+
+ASR (sensevoice)：正常
+TTS (piper)：正常
+Brain (qwen2.5:3b)：正常
+Vision (ollama)：已還原
+
+無服務損傷。
+
+======================
+【結論】
+======================
+
+❌ 此機無法運行 on-device moondream2
+
+根本原因：系統級別依賴版本衝突（dustynv/l4t-ml:r36.4.0 的 NumPy 版本）
+
+解決方案（若要堅持）：
+  1. 自訂 base image（修正 NumPy 版本）
+  2. 或用 CUDA 12.x 專用鏡像
+  3. 或改用較輕量的 VLM（如 TinyLlava）
+
+當前建議：永久擱置 moondream2，系統已安全還原至生產狀態。
+

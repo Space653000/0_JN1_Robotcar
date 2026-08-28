@@ -38,17 +38,17 @@ def _load_moondream_bg():
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained(
-            "vikhyatk/moondream2",
+            "/data/hf/moondream2",
             trust_remote_code=True,
-            cache_dir="/data/hf"
+            local_files_only=True
         )
 
         model = AutoModelForCausalLM.from_pretrained(
-            "vikhyatk/moondream2",
+            "/data/hf/moondream2",
             trust_remote_code=True,
+            local_files_only=True,
             torch_dtype=torch.float16,
-            device_map={"": DEVICE},
-            cache_dir="/data/hf"
+            device_map={"": DEVICE}
         )
 
         _moondream = {"tokenizer": tokenizer, "model": model}
