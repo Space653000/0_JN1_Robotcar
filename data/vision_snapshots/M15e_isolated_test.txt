@@ -1,0 +1,54 @@
+【M15e moondream2 隔離 docker run 測試】
+時間：2026-08-28 22:15 UTC
+目標：純測 moondream2 能否加載+描述（零影響生產）
+
+【步驟 1】驗證三個修改都在
+
+Dockerfile.m15 檢查：
+14:# 安裝依賴（包括 transformers）
+16:    fastapi uvicorn python-multipart pillow einops accelerate opencv-python transformers 2>&1 || \
+17:    pip install fastapi uvicorn python-multipart pillow einops accelerate opencv-python transformers
+20:RUN pip install --no-cache-dir "numpy==1.26.4"
+23:COPY src/vision/server_lazy.py /app/server.py
+
+server_lazy.py 檢查：
+25:MODEL_PATH = "/data/hf/moondream2"
+41:            "/data/hf/moondream2",
+43:            local_files_only=True
+47:            "/data/hf/moondream2",
+49:            local_files_only=True,
+
+【步驟 2】Build vision-m15:test（不經 compose）
+❌ build 失敗
+
+【Build 日誌末尾】
+#9 1.286 Looking in indexes: https://pypi.jetson-ai-lab.dev/jp6/cu126
+#9 1.341 WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa4a0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+#9 1.846 WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa7d0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+#9 2.852 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa980>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+#9 4.862 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaab30>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+#9 8.871 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaace0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+#9 8.891 ERROR: Could not find a version that satisfies the requirement numpy==1.26.4 (from versions: none)
+#9 8.891 ERROR: No matching distribution found for numpy==1.26.4
+#9 ERROR: process "/bin/bash -c pip install --no-cache-dir \"numpy==1.26.4\"" did not complete successfully: exit code: 1
+------
+ > [5/6] RUN pip install --no-cache-dir "numpy==1.26.4":
+0.885 Using pip 25.0.1 from /usr/local/lib/python3.10/dist-packages/pip (python 3.10)
+1.286 Looking in indexes: https://pypi.jetson-ai-lab.dev/jp6/cu126
+1.341 WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa4a0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+1.846 WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa7d0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+2.852 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaa980>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+4.862 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaab30>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+8.871 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0xffff91eaace0>: Failed to establish a new connection: [Errno -2] Name or service not known')': /jp6/cu126/numpy/
+8.891 ERROR: Could not find a version that satisfies the requirement numpy==1.26.4 (from versions: none)
+8.891 ERROR: No matching distribution found for numpy==1.26.4
+------
+Dockerfile.m15:20
+--------------------
+  18 |     
+  19 |     # 釘 numpy 版本（蓋掉 base 的 2.2.6，修復 PyTorch 衝突）
+  20 | >>> RUN pip install --no-cache-dir "numpy==1.26.4"
+  21 |     
+  22 |     # 複製延遲加載版 server
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/bash -c pip install --no-cache-dir \"numpy==1.26.4\"" did not complete successfully: exit code: 1
