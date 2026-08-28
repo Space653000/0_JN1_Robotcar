@@ -30,3 +30,24 @@ for m in $(grep -v '^#' data/MODELS_REQUIRED.txt); do
 done
 
 ## 3) 提交良好狀態 + 把 stable-senseVoice tag 移到這
+ create mode 100644 data/vision_snapshots/M27_restore_redesign.txt
+ create mode 100755 ops/jn1_restore.sh
+
+推送 jn1-work...
+   d922783..6885342  jn1-work -> jn1-work
+
+合併並推送 main...
+Aborting
+Already up to date.
+Everything up-to-date
+
+更新 stable-senseVoice tag...
+Updated tag 'stable-senseVoice' (was 80c160f)
+ + 80c160f...6885342 stable-senseVoice -> stable-senseVoice (forced update)
+Your branch is up to date with 'origin/jn1-work'.
+stable-senseVoice 現指向：
+6885342 M27: 真恢復點 - 模型自動 re-pull + 還原腳本進 repo
+
+## 4) 驗證新腳本的模型檢查邏輯(不重建,只測檢查段)
+✓ qwen2.5:3b 在
+✓ llava 在
