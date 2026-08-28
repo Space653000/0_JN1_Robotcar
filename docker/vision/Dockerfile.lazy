@@ -1,0 +1,18 @@
+FROM dustynv/l4t-pytorch:r36.2.0
+
+WORKDIR /app
+
+# 基础工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+
+# 安装依赖（不重装 torch/torchaudio）
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
+    fastapi uvicorn python-multipart transformers accelerate pillow einops opencv-python 2>&1 || \
+    pip install fastapi uvicorn python-multipart transformers accelerate pillow einops opencv-python
+
+# 复制延迟加载版 server
+COPY src/vision/server_lazy.py /app/server.py
+
+EXPOSE 8000
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
