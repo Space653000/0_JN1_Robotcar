@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 安裝 moondream2 + transformers 依賴（使用鏡像源）
 RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
-    transformers accelerate pillow einops \
-    2>&1 || pip install transformers accelerate pillow einops
+    fastapi uvicorn python-multipart transformers accelerate pillow einops \
+    2>&1 || pip install fastapi uvicorn python-multipart transformers accelerate pillow einops
 
 # 複製 Vision 服務代碼
 COPY src/vision/server.py .
 
 EXPOSE 8000
-CMD ["python", "server.py"]
+CMD ["python3", "server.py"]
