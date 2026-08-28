@@ -1,0 +1,103 @@
+【M18b Vision 容器複查 — 用 Python 釘死】
+時間：2026-08-28 23:25 UTC
+目的：確認 vision 真實狀態（不依賴 curl 工具）
+
+======================
+【1. 檢查容器中是否有 curl】
+======================
+
+Vision: VISION-NO-CURL
+Brain:  BRAIN-NO-CURL
+【2. Python 從 Vision 容器內自檢】
+
+【3. Python 從 Brain 走內網戳 Vision】
+
+【4. Socket 連接測試（8000 埠是否監聽）】
+
+【5. Vision 容器日誌（最後 30 行）】
+INFO:     172.18.0.9:36876 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:57546 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:40962 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:45534 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:60660 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:44068 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:52608 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:45166 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:42594 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:59916 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:42914 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:39786 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:39286 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:54308 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:43174 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:52816 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:58276 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:47418 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:45414 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:58528 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:55162 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:43256 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:41150 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:37526 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:51548 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:58438 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:33302 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:37972 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:51616 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:35364 - "GET /health HTTP/1.1" 200 OK
+【判定】
+🔍 發現：Vision 容器沒有 curl 工具
+   → 這解釋了上次為何「curl 無回應」！
+⚠️  Python 自檢全失敗
+⚠️  Brain 內網連接失敗
+❌ Socket 連接失敗 → 沒人在監聽
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     172.18.0.7:57662 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:48390 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:48408 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:39210 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:57512 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:52960 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:34038 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:54146 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:34110 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:54112 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:37640 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:35982 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:48558 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:39448 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:54206 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:60992 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:43822 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:49674 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:58910 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:54264 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:49454 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:55668 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:41814 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:35700 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:46572 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:42962 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:48868 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:60756 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:32924 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:48752 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:47796 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:49736 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:49798 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:43650 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:55742 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:42190 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:41102 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:43948 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:53250 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:33400 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:42400 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:51790 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:36092 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:34874 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.9:33128 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:54100 - "GET /health HTTP/1.1" 200 OK
