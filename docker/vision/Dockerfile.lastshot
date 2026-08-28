@@ -1,0 +1,18 @@
+FROM dustynv/l4t-ml:r36.4.0
+
+WORKDIR /app
+
+# 确认 base 已有 transformers 和 torch（不重装）
+RUN python3 -c "import transformers, torch; print(f'torch: {torch.__version__}'); print(f'transformers: {transformers.__version__}')" && \
+    echo "✓ Base 已内置 torch 和 transformers，跳过重装"
+
+# 只补充缺失的小包（加快构建）
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
+    pillow einops accelerate opencv-python fastapi uvicorn python-multipart 2>&1 || \
+    pip install pillow einops accelerate opencv-python fastapi uvicorn python-multipart
+
+# 复制延迟加载版 server
+COPY src/vision/server_lazy.py /app/server.py
+
+EXPOSE 8000
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
