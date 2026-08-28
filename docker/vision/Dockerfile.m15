@@ -16,6 +16,9 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
     fastapi uvicorn python-multipart pillow einops accelerate opencv-python transformers 2>&1 || \
     pip install fastapi uvicorn python-multipart pillow einops accelerate opencv-python transformers
 
+# 釘 numpy 版本（蓋掉 base 的 2.2.6，修復 PyTorch 衝突）
+RUN pip install --no-cache-dir "numpy==1.26.4"
+
 # 複製延遲加載版 server
 COPY src/vision/server_lazy.py /app/server.py
 
