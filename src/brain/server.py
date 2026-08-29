@@ -708,7 +708,7 @@ def ask(req: Ask):
         _c = _ask_cloud(req.text)
         if _c:
             res["reply"] = _c
-            res["source"] = "cloud-openrouter"
+            res["source"] = "cloud"
     tts = _speak(res["reply"]) if req.speak else None
     return {"ok": True, "intent": intent, **res, "tts": tts}
 
