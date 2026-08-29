@@ -5,7 +5,7 @@ import requests
 
 app = FastAPI()
 KEY = os.environ.get("OPENROUTER_API_KEY","")
-MODEL = os.environ.get("OPENROUTER_MODEL","")
+MODEL = os.environ.get("OPENROUTER_MODEL","mistralai/mistral-7b-instruct:free")
 DAILY = int(os.environ.get("CLOUD_DAILY_LIMIT","45"))
 S = {"day":"","count":0,"breaker":0}
 
