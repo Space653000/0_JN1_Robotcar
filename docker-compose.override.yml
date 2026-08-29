@@ -1,14 +1,6 @@
-# Audio cookie fix: in-container paplay/parec read the PulseAudio cookie from
-# ~/.config/pulse/cookie (container HOME=/root). Mount the host user's cookie there
-# and point PULSE_COOKIE at it (host playback already works; this fixes container->pulse auth).
 services:
-  tts:
-    environment:
-      - PULSE_COOKIE=/root/.config/pulse/cookie
+  brain:
     volumes:
-      - /home/jetson/.config/pulse/cookie:/root/.config/pulse/cookie:ro
-  asr:
+      - ./src/brain/server.py:/app/server.py
     environment:
-      - PULSE_COOKIE=/root/.config/pulse/cookie
-    volumes:
-      - /home/jetson/.config/pulse/cookie:/root/.config/pulse/cookie:ro
+      - CLOUD_GW_URL=http://cloud-gw:8000

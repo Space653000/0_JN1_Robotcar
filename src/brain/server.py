@@ -675,11 +675,40 @@ def stats_reset():
     return {"reset": True}
 
 
+# ---- M31 雲端顧問（本地先答，弱才問，fail-open）----
+CLOUD_GW = os.environ.get("CLOUD_GW_URL", "http://cloud-gw:8000")
+_WEAK_MARKERS = ("不知道","不清楚","不確定","無法回答","無法確定","抱歉","sorry","not sure","i don't know","cannot answer")
+
+def _local_answer_weak(reply):
+    r = (reply or "").strip()
+    if len(r) < 8:
+        return True
+    low = r.lower()
+    return any(m in r or m in low for m in _WEAK_MARKERS)
+
+def _ask_cloud(text):
+    try:
+        rr = requests.post(CLOUD_GW + "/ask", json={"text": text}, timeout=20)
+        if rr.status_code != 200:
+            return None
+        d = rr.json()
+        if d.get("ok") and d.get("reply"):
+            return d["reply"]
+        return None
+    except Exception:
+        return None
+
 @app.post("/ask")
 def ask(req: Ask):
     intent = route(req.text)
     remember_entities(req.text, intent)
     res = handle_intent(intent, req.text)
+    # M31: chat 意圖且本地答案弱 -> 自動問雲端; 雲端 null 一律退本地(斷網照常)
+    if intent == "chat" and _local_answer_weak(res.get("reply", "")):
+        _c = _ask_cloud(req.text)
+        if _c:
+            res["reply"] = _c
+            res["source"] = "cloud-openrouter"
     tts = _speak(res["reply"]) if req.speak else None
     return {"ok": True, "intent": intent, **res, "tts": tts}
 
