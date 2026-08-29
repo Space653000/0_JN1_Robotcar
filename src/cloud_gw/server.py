@@ -5,7 +5,7 @@ import requests
 
 app = FastAPI()
 KEY = os.environ.get("OPENROUTER_API_KEY","")
-MODEL = os.environ.get("OPENROUTER_MODEL","deepseek/deepseek-chat-v3-0324:free")
+MODEL = os.environ.get("OPENROUTER_MODEL","")
 DAILY = int(os.environ.get("CLOUD_DAILY_LIMIT","45"))
 S = {"day":"","count":0,"breaker":0}
 
