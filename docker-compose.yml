@@ -189,6 +189,4 @@ services:
       - ./src/cloud_gw:/app
     ports:
       - "127.0.0.1:8010:8000"
-    networks:
-      - default
     restart: unless-stopped
