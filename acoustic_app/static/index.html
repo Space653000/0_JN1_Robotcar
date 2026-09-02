@@ -6,17 +6,17 @@
   :root{
     --bg:#eef1f3; --panel:#ffffff; --panel-2:#f6f8f9; --ink:#0d1b1e; --ink-soft:#4a5b60;
     --line:#d5dee1; --line-soft:#e4ebed; --accent:#0d9488; --accent-soft:#0d948820;
-    --grid:#c7d3d6; --trace:#0d9488; --trace-2:#6b8e95;
+    --grid:#c7d3d6; --trace:#0d9488;
     --good:#15803d; --good-bg:#15803d1a; --warn:#b45309; --warn-bg:#b453091a; --bad:#b91c1c; --bad-bg:#b91c1c1a;
     --demo:#7c3aed; --demo-bg:#7c3aed1a;
     --shadow:0 1px 2px #0d1b1e10,0 8px 24px -12px #0d1b1e24;
-    --mono:'IBM Plex Mono',ui-monospace,'Cascadia Code',Menlo,monospace;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
     --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   }
   :root:not([data-theme="light"]){ @media (prefers-color-scheme:dark){
     --bg:#0a1113; --panel:#101a1d; --panel-2:#0c1517; --ink:#e6f0f1; --ink-soft:#8aa1a6;
     --line:#1e2d31; --line-soft:#172225; --accent:#2dd4bf; --accent-soft:#2dd4bf1f;
-    --grid:#1c2a2e; --trace:#2dd4bf; --trace-2:#5f8b90;
+    --grid:#1c2a2e; --trace:#2dd4bf;
     --good:#4ade80; --good-bg:#4ade8018; --warn:#fbbf24; --warn-bg:#fbbf2416; --bad:#f87171; --bad-bg:#f8717118;
     --demo:#c4b5fd; --demo-bg:#c4b5fd18;
     --shadow:0 1px 2px #00000040,0 10px 30px -14px #000000cc;
@@ -24,112 +24,94 @@
   :root[data-theme="dark"]{
     --bg:#0a1113; --panel:#101a1d; --panel-2:#0c1517; --ink:#e6f0f1; --ink-soft:#8aa1a6;
     --line:#1e2d31; --line-soft:#172225; --accent:#2dd4bf; --accent-soft:#2dd4bf1f;
-    --grid:#1c2a2e; --trace:#2dd4bf; --trace-2:#5f8b90;
+    --grid:#1c2a2e; --trace:#2dd4bf;
     --good:#4ade80; --good-bg:#4ade8018; --warn:#fbbf24; --warn-bg:#fbbf2416; --bad:#f87171; --bad-bg:#f8717118;
     --demo:#c4b5fd; --demo-bg:#c4b5fd18;
     --shadow:0 1px 2px #00000040,0 10px 30px -14px #000000cc;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-    font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1280px;margin:0 auto;padding:16px}
   .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
-
-  /* header */
-  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-    padding:12px 16px;background:var(--panel);border:1px solid var(--line);
-    border-radius:14px;box-shadow:var(--shadow)}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
   .brand{display:flex;flex-direction:column;gap:2px;margin-right:auto}
   .brand h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
   .brand .sub{font-size:12px;color:var(--ink-soft)}
-  .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);
-    font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;border:1px solid transparent}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;border:1px solid transparent}
   .badge.live{color:var(--good);background:var(--good-bg);border-color:var(--good)}
   .badge.demo{color:var(--demo);background:var(--demo-bg);border-color:var(--demo)}
   .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  .iconbtn{font-family:var(--mono);font-size:12px;cursor:pointer;background:var(--panel-2);
-    color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:6px 11px}
+  .iconbtn{font-family:var(--mono);font-size:12px;cursor:pointer;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:6px 11px}
   .iconbtn:hover{border-color:var(--accent)}
   .iconbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-  /* honesty strip */
-  .honesty{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:10px 2px 14px;
-    font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+  .honesty{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin:10px 2px 14px;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
   .honesty b{color:var(--ink);font-weight:600}
   .honesty .sep{width:1px;height:12px;background:var(--line)}
-
-  /* layout */
   .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px}
   @media(max-width:920px){.grid{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-    box-shadow:var(--shadow);overflow:hidden}
-  .panel .head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-soft)}
-  .panel .head h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.01em}
-  .panel .head .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);
-    border:1px solid var(--line);border-radius:6px;padding:2px 7px}
-  .panel .body{padding:14px}
   .stack{display:flex;flex-direction:column;gap:14px}
-
-  /* camera / DoA */
-  .scene{position:relative;aspect-ratio:4/3;background:
-    radial-gradient(120% 90% at 50% 15%,var(--panel-2),var(--bg));
-    border-radius:10px;overflow:hidden;border:1px solid var(--line-soft)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .panel .head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+  .panel .head h2{margin:0;font-size:13px;font-weight:600}
+  .panel .head .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .panel .body{padding:14px}
+  .scene{position:relative;aspect-ratio:4/3;background:radial-gradient(120% 90% at 50% 15%,var(--panel-2),var(--bg));border-radius:10px;overflow:hidden;border:1px solid var(--line-soft)}
+  .scene.cam{aspect-ratio:16/9;background:#05090a}
   .scene canvas{position:absolute;inset:0;width:100%;height:100%}
-  .scene .nocam{position:absolute;left:10px;bottom:8px;font-family:var(--mono);
-    font-size:10.5px;color:var(--ink-soft);background:var(--panel);padding:2px 7px;border-radius:6px;
-    border:1px solid var(--line);opacity:.9}
-  .overlaynote{position:absolute;right:10px;top:8px;font-family:var(--mono);font-size:10.5px;
-    color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:3px 8px;border-radius:6px}
-
-  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .overlaynote{position:absolute;right:10px;top:8px;font-family:var(--mono);font-size:10.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:3px 8px;border-radius:6px;opacity:.92;z-index:2}
+  .nocam{position:absolute;left:10px;bottom:8px;font-family:var(--mono);font-size:10.5px;color:var(--ink);background:var(--panel);padding:2px 7px;border-radius:6px;border:1px solid var(--line);opacity:.92;z-index:2}
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   .metric{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px}
   .metric .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
   .metric .v{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:2px}
   .metric .v small{font-size:12px;font-weight:500;color:var(--ink-soft)}
-
-  .conf{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;
-    font-weight:600;padding:4px 9px;border-radius:8px}
+  .conf{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:600;padding:4px 9px;border-radius:8px}
   .conf.hi{color:var(--good);background:var(--good-bg)}
   .conf.md{color:var(--warn);background:var(--warn-bg)}
   .conf.lo{color:var(--bad);background:var(--bad-bg)}
-
   canvas.plot{width:100%;display:block;border-radius:8px;background:var(--panel-2);border:1px solid var(--line-soft)}
-
-  /* controls */
   .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 16px}
   .ctl{display:flex;flex-direction:column;gap:5px}
   .ctl label{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
   .ctl .row{display:flex;align-items:center;gap:8px}
   select,input[type=range]{width:100%;accent-color:var(--accent)}
-  select{font-family:var(--mono);font-size:12px;background:var(--panel-2);color:var(--ink);
-    border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  select{font-family:var(--mono);font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
   .val{font-family:var(--mono);font-size:12px;color:var(--ink);min-width:56px;text-align:right}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{font-family:var(--mono);font-size:11.5px;background:var(--panel-2);color:var(--ink-soft);
-    border:0;padding:6px 10px;cursor:pointer}
+  .seg button{font-family:var(--mono);font-size:11.5px;background:var(--panel-2);color:var(--ink-soft);border:0;padding:6px 10px;cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--accent);color:#04211d}
-  :root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#04211d}
-  .recbtn{font-family:var(--mono);font-weight:600;font-size:13px;cursor:pointer;border-radius:9px;
-    padding:8px 16px;border:1px solid var(--bad);color:var(--bad);background:var(--bad-bg)}
+  .recbtn{font-family:var(--mono);font-weight:600;font-size:13px;cursor:pointer;border-radius:9px;padding:8px 16px;border:1px solid var(--bad);color:var(--bad);background:var(--bad-bg)}
   .recbtn[aria-pressed="true"]{background:var(--bad);color:#fff}
-
   .classchips{display:flex;flex-wrap:wrap;gap:6px}
-  .chip{font-family:var(--mono);font-size:11.5px;padding:4px 9px;border-radius:999px;
-    border:1px solid var(--line);color:var(--ink-soft);background:var(--panel-2)}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-soft);background:var(--panel-2)}
   .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
-
-  footer{margin:16px 2px 8px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;
-    font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
-  footer .warnpill{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn);
-    padding:2px 8px;border-radius:6px}
+  footer{margin:16px 2px 8px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  footer .warnpill{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn);padding:2px 8px;border-radius:6px}
   .statusline{margin-left:auto;color:var(--ink)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 
 <div class="wrap">
+  <!-- 相機 + 聲源方向面板 P0 -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="head"><h2>📹 相機 + 聲源方向（實驗） ⚠️ 未校準</h2></div>
+    <div class="body">
+      <div class="scene cam" style="position:relative">
+        <img src="/camera.mjpg" alt="Camera stream" style="opacity:0.9">
+        <canvas id="doa-overlay" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+        <div class="nocam">Offline</div>
+      </div>
+      <div class="readout" style="margin-top:10px">
+        <div class="metric"><div class="k">方位</div><div class="v" id="cam-az">—°</div></div>
+        <div class="metric"><div class="k">信心</div><div class="v" id="cam-conf">—</div></div>
+        <div class="metric"><div class="k">前後</div><div class="v" id="cam-amb">—</div></div>
+      </div>
+    </div>
+  </div>
+
   <header>
     <div class="brand">
       <h1>JN1 聲學定位</h1>
@@ -145,49 +127,52 @@
     <span>板載 DoA + GCC-PHAT</span><span class="sep"></span>
     <span>角度不確定度 <b>±30–45°</b></span><span class="sep"></span>
     <span>頻寬上限 <b>8 kHz</b></span><span class="sep"></span>
-    <span>音量為 <b>相對 dB</b>（非 SPL）</span><span class="sep"></span>
+    <span>音量為 <b>相對 dB</b></span><span class="sep"></span>
     <span>方位輸出，<b>非 2D 聲場</b></span>
   </div>
 
   <div class="grid">
-    <!-- LEFT: camera + DoA -->
-    <div class="panel">
-      <div class="head">
-        <h2>方位雷達 · 360° DoA</h2>
-        <span class="tag">0–360°</span>
-      </div>
-      <div class="body">
-        <div class="scene">
-          <canvas id="scene"></canvas>
-          <span class="overlaynote">外圈＝360°方位 · 前方＝相機視野</span>
-          <span class="nocam" id="camNote">示範資料 · 360° 雷達</span>
+    <!-- LEFT: camera + radar -->
+    <div class="stack">
+      <div class="panel">
+        <div class="head"><h2>相機 + 聲源方向</h2><span class="tag">未校準對齊 ±</span></div>
+        <div class="body">
+          <div class="scene cam">
+            <img id="cam" alt="camera feed">
+            <canvas id="camOv"></canvas>
+            <span class="overlaynote" id="camClass">研判聲源：—</span>
+            <span class="nocam" id="camMsg">等待相機…</span>
+          </div>
         </div>
-        <div class="readout">
-          <div class="metric">
-            <div class="k">Peak Azimuth</div>
-            <div class="v"><span id="mAz">–</span><small>°</small></div>
-          </div>
-          <div class="metric">
-            <div class="k">Confidence</div>
-            <div class="v" style="font-size:15px;padding-top:4px"><span id="mConf" class="conf md">–</span></div>
-          </div>
-          <div class="metric">
-            <div class="k">Level (rel)</div>
-            <div class="v"><span id="mLvl">–</span><small>dB</small></div>
+      </div>
+      <div class="panel">
+        <div class="head"><h2>360° 方位雷達</h2><span class="tag">0–360°</span></div>
+        <div class="body">
+          <div class="scene">
+            <canvas id="scene"></canvas>
+            <span class="overlaynote">外圈＝360° · 淺色扇形＝相機視野</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- RIGHT: spectrum / spectrogram / level -->
+    <!-- RIGHT: readout + spectrum + spectrogram + classifier -->
     <div class="stack">
       <div class="panel">
+        <div class="head"><h2>即時讀值</h2><span class="tag">live</span></div>
+        <div class="body"><div class="readout">
+          <div class="metric"><div class="k">Peak Azimuth</div><div class="v"><span id="mAz">–</span><small>°</small></div></div>
+          <div class="metric"><div class="k">Confidence</div><div class="v" style="font-size:15px;padding-top:4px"><span id="mConf" class="conf md">–</span></div></div>
+          <div class="metric"><div class="k">Level (rel)</div><div class="v"><span id="mLvl">–</span><small>dB</small></div></div>
+        </div></div>
+      </div>
+      <div class="panel">
         <div class="head"><h2>頻譜 · Spectrum</h2><span class="tag">0–8 kHz</span></div>
-        <div class="body"><canvas id="spec" class="plot" height="150"></canvas></div>
+        <div class="body"><canvas id="spec" class="plot" height="140"></canvas></div>
       </div>
       <div class="panel">
         <div class="head"><h2>時頻圖 · Spectrogram</h2><span class="tag">scroll · 8 kHz</span></div>
-        <div class="body"><canvas id="sgram" class="plot" height="150"></canvas></div>
+        <div class="body"><canvas id="sgram" class="plot" height="140"></canvas></div>
       </div>
       <div class="panel">
         <div class="head"><h2>聲音事件分類 · Classifier</h2><span class="tag">實驗 / 非定位</span></div>
@@ -196,7 +181,6 @@
     </div>
   </div>
 
-  <!-- controls -->
   <div class="panel" style="margin-top:14px">
     <div class="head"><h2>控制 · Controls</h2>
       <button class="recbtn" id="recBtn" aria-pressed="false" style="margin-left:auto">● 錄製</button>
@@ -210,18 +194,10 @@
             <option value="gcc">GCC-PHAT</option>
           </select>
         </div>
-        <div class="ctl"><label>低頻 f_low</label>
-          <div class="row"><input type="range" id="flow" min="80" max="7500" step="20" value="300"><span class="val mono" id="flowV">300 Hz</span></div>
-        </div>
-        <div class="ctl"><label>高頻 f_high</label>
-          <div class="row"><input type="range" id="fhigh" min="500" max="8000" step="20" value="6000"><span class="val mono" id="fhighV">6000 Hz</span></div>
-        </div>
-        <div class="ctl"><label>動態範圍 Dyn Range</label>
-          <div class="row"><input type="range" id="dyn" min="6" max="30" step="1" value="12"><span class="val mono" id="dynV">12 dB</span></div>
-        </div>
-        <div class="ctl"><label>平滑 Smoothing</label>
-          <div class="row"><input type="range" id="smooth" min="0" max="90" step="5" value="45"><span class="val mono" id="smoothV">0.45</span></div>
-        </div>
+        <div class="ctl"><label>低頻 f_low</label><div class="row"><input type="range" id="flow" min="80" max="7500" step="20" value="300"><span class="val mono" id="flowV">300 Hz</span></div></div>
+        <div class="ctl"><label>高頻 f_high</label><div class="row"><input type="range" id="fhigh" min="500" max="8000" step="20" value="6000"><span class="val mono" id="fhighV">6000 Hz</span></div></div>
+        <div class="ctl"><label>動態範圍 Dyn Range</label><div class="row"><input type="range" id="dyn" min="6" max="30" step="1" value="12"><span class="val mono" id="dynV">12 dB</span></div></div>
+        <div class="ctl"><label>平滑 Smoothing</label><div class="row"><input type="range" id="smooth" min="0" max="90" step="5" value="45"><span class="val mono" id="smoothV">0.45</span></div></div>
         <div class="ctl"><label>色階 Scaling</label>
           <div class="seg" id="scaleSeg" role="group" aria-label="scaling">
             <button data-v="auto" aria-pressed="true">Auto</button>
@@ -234,7 +210,7 @@
   </div>
 
   <footer>
-    <span class="warnpill">示範資料 — 非即時量測</span>
+    <span class="warnpill" id="demoPill">示範資料 — 非即時量測</span>
     <span>資料來源：<b id="src" style="color:var(--ink)">DEMO 模擬</b></span>
     <span>更新：<span id="fps">–</span> fps</span>
     <span class="statusline" id="status">等待資料…</span>
@@ -242,223 +218,212 @@
 </div>
 
 <script>
-/* ============================================================================
-   JN1 聲學定位 — frontend
-   Runs in two modes:
-     • LIVE  : connects ws://<host>/ws/live (served by the Jetson backend) and
-               renders REAL frames from the XVF3800 2ch + onboard DoA pipeline.
-     • DEMO  : no backend → simulated data, clearly labelled, so the UI is
-               viewable anywhere. DEMO never claims to be a measurement.
-   The backend must send JSON frames matching FRAME_CONTRACT (see docs below).
-   ============================================================================ */
+/* JN1 聲學定位 — frontend (LIVE via ws://<host>/ws/live, else DEMO) */
 const $=s=>document.querySelector(s);
-const state={
-  mode:'demo', algo:'hybrid', flow:300, fhigh:6000, dyn:12, smooth:0.45, scale:'auto',
-  recording:false, azEMA:null, lvlEMA:null, lastT:performance.now(), frames:0, fps:0
-};
+const state={mode:'demo',algo:'hybrid',flow:300,fhigh:6000,dyn:12,smooth:0.45,scale:'auto',
+  recording:false,azEMA:null,lvlEMA:null,lastT:performance.now(),frames:0,fps:0,hfov:70,camUrl:'/camera.mjpg'};
+const CLASSES=['語音 Speech','馬達 Motor','風噪 Hiss','敲擊 Impact','機械 Mech','靜音 Quiet'];
 
-/* ---- theme toggle ---- */
-$('#themeBtn').onclick=()=>{
-  const r=document.documentElement;
-  const cur=r.getAttribute('data-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
-  r.setAttribute('data-theme', cur==='dark'?'light':'dark');
-};
+$('#themeBtn').onclick=()=>{const r=document.documentElement;
+  const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  r.setAttribute('data-theme',cur==='dark'?'light':'dark');};
 
-/* ---- controls ---- */
 const bind=(id,fn)=>{const e=$(id);e.addEventListener('input',()=>fn(e));};
 bind('#algo',e=>state.algo=e.value);
 bind('#flow',e=>{state.flow=+e.value;$('#flowV').textContent=e.value+' Hz';if(state.flow>state.fhigh-200){state.fhigh=state.flow+200;$('#fhigh').value=state.fhigh;$('#fhighV').textContent=state.fhigh+' Hz';}});
 bind('#fhigh',e=>{state.fhigh=+e.value;$('#fhighV').textContent=e.value+' Hz';});
 bind('#dyn',e=>{state.dyn=+e.value;$('#dynV').textContent=e.value+' dB';});
-bind('#smooth',e=>{state.smooth=+e.value/100;$('#smoothV').textContent=(state.smooth).toFixed(2);});
-$('#scaleSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));state.scale=b.dataset.v;});
-$('#recBtn').onclick=e=>{state.recording=!state.recording;const b=$('#recBtn');
-  b.setAttribute('aria-pressed',state.recording);b.textContent=state.recording?'■ 停止':'● 錄製';};
+bind('#smooth',e=>{state.smooth=+e.value/100;$('#smoothV').textContent=state.smooth.toFixed(2);});
+$('#scaleSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));state.scale=b.dataset.v;});
+$('#recBtn').onclick=()=>{state.recording=!state.recording;const b=$('#recBtn');b.setAttribute('aria-pressed',state.recording);b.textContent=state.recording?'■ 停止':'● 錄製';};
 
-/* ---- classifier chips (labels only; backend sets the active one) ---- */
-const CLASSES=['語音 Speech','馬達 Motor','風噪 Hiss','敲擊 Impact','機械 Mech','靜音 Quiet'];
 const chipsEl=$('#chips');
 CLASSES.forEach(c=>{const s=document.createElement('span');s.className='chip';s.textContent=c;chipsEl.appendChild(s);});
 function setClass(i){[...chipsEl.children].forEach((c,k)=>c.classList.toggle('on',k===i));}
 
-/* ---- canvases ---- */
-function fit(c){const r=c.getBoundingClientRect(),d=devicePixelRatio||1;
-  c.width=r.width*d;c.height=(c.height||150)*d;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return x;}
-const scene=$('#scene'), sctx=scene.getContext('2d');
-let specCtx=fit($('#spec')), sgCtx=fit($('#sgram'));
-addEventListener('resize',()=>{specCtx=fit($('#spec'));sgCtx=fit($('#sgram'));});
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-
-/* resize scene canvas to element box */
-function fitScene(){const r=scene.getBoundingClientRect(),d=devicePixelRatio||1;
-  scene.width=r.width*d;scene.height=r.height*d;sctx.setTransform(d,0,0,d,0,0);}
+function fit(c){const r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=(c.height||140)*d;const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return x;}
+const scene=$('#scene'),sctx=scene.getContext('2d');
+const camOv=$('#camOv'),coctx=camOv.getContext('2d'),camImg=$('#cam');
+let specCtx=fit($('#spec')),sgCtx=fit($('#sgram'));
+addEventListener('resize',()=>{specCtx=fit($('#spec'));sgCtx=fit($('#sgram'));});
+function fitBox(cv,ctx){const r=cv.getBoundingClientRect(),d=devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);}
+function fitScene(){fitBox(scene,sctx);}
+function fitCam(){fitBox(camOv,coctx);}
 new ResizeObserver(fitScene).observe(scene);
+new ResizeObserver(fitCam).observe(camOv);
 
-/* ---- confidence helper ---- */
+/* camera image load handling */
+let camOnline=false;
+camImg.onload=()=>{camOnline=true;$('#camMsg').textContent='● 相機即時';};
+camImg.onerror=()=>{camOnline=false;$('#camMsg').textContent='相機離線（示範）';};
+camImg.src=state.camUrl;   // works on Jetson; 404s in DEMO → onerror
+
 function confClass(c){return c>=0.66?['hi','高']:c>=0.4?['md','中']:['lo','低'];}
 
-/* ---- draw: 360° DoA radar ---- */
-function drawScene(az,conf){
-  const r=scene.getBoundingClientRect(),W=r.width,H=r.height;
-  sctx.clearRect(0,0,W,H);
-  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.40;
-  // azimuth convention: 0°=前(up), clockwise; deg→canvas angle = deg-90
-  const toXY=(deg,rad)=>{const a=(deg-90)*Math.PI/180;return [cx+Math.cos(a)*rad, cy+Math.sin(a)*rad];};
-  // concentric rings + cross axes
+/* ---- 360° radar ---- */
+function drawScene(az,conf,amb){
+  const r=scene.getBoundingClientRect(),W=r.width,H=r.height;sctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,R=Math.min(W,H)*0.40;
+  const toXY=(deg,rad)=>{const a=(deg-90)*Math.PI/180;return[cx+Math.cos(a)*rad,cy+Math.sin(a)*rad];};
   sctx.strokeStyle=css('--grid');sctx.lineWidth=1;
   for(let k=1;k<=3;k++){sctx.globalAlpha=.55;sctx.beginPath();sctx.arc(cx,cy,R*k/3,0,7);sctx.stroke();}
-  sctx.globalAlpha=.55;sctx.beginPath();sctx.moveTo(cx-R,cy);sctx.lineTo(cx+R,cy);
-  sctx.moveTo(cx,cy-R);sctx.lineTo(cx,cy+R);sctx.stroke();sctx.globalAlpha=1;
-  // camera FOV sector at front (D456 HFOV ~87° → ±43.5)
-  const fov=43.5;
-  sctx.beginPath();sctx.moveTo(cx,cy);
-  sctx.arc(cx,cy,R,(-fov-90)*Math.PI/180,(fov-90)*Math.PI/180);sctx.closePath();
-  sctx.fillStyle=css('--accent-soft');sctx.fill();
-  // outer ring
-  sctx.strokeStyle=css('--grid');sctx.lineWidth=1;sctx.beginPath();sctx.arc(cx,cy,R,0,7);sctx.stroke();
-  // cardinal labels
-  sctx.fillStyle=css('--ink-soft');sctx.font='11px '+css('--mono');
-  sctx.textAlign='center';sctx.textBaseline='middle';
-  [['0° 前',0],['90° 右',90],['180° 後',180],['270° 左',270]].forEach(([t,d])=>{
-    const [x,y]=toXY(d,R+18);sctx.fillText(t,x,y);});
-  // DoA wedge (half-width = uncertainty → low conf widens honestly)
+  sctx.globalAlpha=.55;sctx.beginPath();sctx.moveTo(cx-R,cy);sctx.lineTo(cx+R,cy);sctx.moveTo(cx,cy-R);sctx.lineTo(cx,cy+R);sctx.stroke();sctx.globalAlpha=1;
+  const fov=state.hfov/2;
+  sctx.beginPath();sctx.moveTo(cx,cy);sctx.arc(cx,cy,R,(-fov-90)*Math.PI/180,(fov-90)*Math.PI/180);sctx.closePath();sctx.fillStyle=css('--accent-soft');sctx.fill();
+  sctx.strokeStyle=css('--grid');sctx.beginPath();sctx.arc(cx,cy,R,0,7);sctx.stroke();
+  sctx.fillStyle=css('--ink-soft');sctx.font='11px '+css('--mono');sctx.textAlign='center';sctx.textBaseline='middle';
+  [['0° 前',0],['90° 右',90],['180° 後',180],['270° 左',270]].forEach(([t,d])=>{const[x,y]=toXY(d,R+18);sctx.fillText(t,x,y);});
   const cCol=conf>=.66?css('--good'):conf>=.4?css('--warn'):css('--bad');
-  const uncert=(1-conf)*35+8;
-  const a0=(az-uncert-90)*Math.PI/180, a1=(az+uncert-90)*Math.PI/180;
-  const g=sctx.createRadialGradient(cx,cy,R*0.1,cx,cy,R);
-  g.addColorStop(0,cCol+'99');g.addColorStop(1,cCol+'0a');
-  sctx.beginPath();sctx.moveTo(cx,cy);sctx.arc(cx,cy,R,a0,a1);sctx.closePath();sctx.fillStyle=g;sctx.fill();
-  // needle + hotspot
-  const [nx,ny]=toXY(az,R);
-  sctx.strokeStyle=cCol;sctx.lineWidth=2;sctx.beginPath();sctx.moveTo(cx,cy);sctx.lineTo(nx,ny);sctx.stroke();
+  const un=(1-conf)*35+8;
+  const g=sctx.createRadialGradient(cx,cy,R*0.1,cx,cy,R);g.addColorStop(0,cCol+'99');g.addColorStop(1,cCol+'0a');
+  sctx.beginPath();sctx.moveTo(cx,cy);sctx.arc(cx,cy,R,(az-un-90)*Math.PI/180,(az+un-90)*Math.PI/180);sctx.closePath();sctx.fillStyle=g;sctx.fill();
+  const[nx,ny]=toXY(az,R);sctx.strokeStyle=cCol;sctx.lineWidth=2;sctx.beginPath();sctx.moveTo(cx,cy);sctx.lineTo(nx,ny);sctx.stroke();
   sctx.fillStyle=cCol;sctx.beginPath();sctx.arc(nx,ny,5,0,7);sctx.fill();
-  // center dot
+  if(amb){const m=(180-az+360)%360,[mx,my]=toXY(m,R);sctx.save();sctx.globalAlpha=.5;sctx.setLineDash([5,4]);
+    sctx.strokeStyle=cCol;sctx.lineWidth=1.5;sctx.beginPath();sctx.moveTo(cx,cy);sctx.lineTo(mx,my);sctx.stroke();
+    sctx.setLineDash([]);sctx.beginPath();sctx.arc(mx,my,4,0,7);sctx.fillStyle=cCol;sctx.fill();sctx.restore();
+    sctx.fillStyle=css('--warn');sctx.font='11px '+css('--mono');sctx.textAlign='center';sctx.textBaseline='bottom';
+    sctx.fillText('前後未消歧 · 真實方向為實線或虛線之一',cx,H-4);}
   sctx.fillStyle=css('--ink-soft');sctx.beginPath();sctx.arc(cx,cy,3,0,7);sctx.fill();
 }
 
-/* ---- draw: spectrum ---- */
-function drawSpectrum(mags){ // mags: 0..1 array across 0..8kHz
-  const c=$('#spec'),r=c.getBoundingClientRect(),W=r.width,H=150,ctx=specCtx;
-  ctx.clearRect(0,0,W,H);
-  // grid + freq ticks
-  ctx.strokeStyle=css('--grid');ctx.fillStyle=css('--ink-soft');ctx.font='10px '+css('--mono');
-  ctx.textAlign='center';ctx.lineWidth=1;
-  [0,2000,4000,6000,8000].forEach(f=>{const x=f/8000*W;ctx.globalAlpha=.5;ctx.beginPath();
-    ctx.moveTo(x,0);ctx.lineTo(x,H-14);ctx.stroke();ctx.globalAlpha=1;
-    ctx.fillText((f/1000)+'k',x,H-2);});
-  // selected band shading
-  const bx0=state.flow/8000*W, bx1=state.fhigh/8000*W;
-  ctx.fillStyle=css('--accent-soft');ctx.fillRect(bx0,0,bx1-bx0,H-14);
-  // trace
-  ctx.beginPath();
-  for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W, y=(H-14)-mags[i]*(H-20);
-    i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
-  ctx.lineTo(W,H-14);ctx.lineTo(0,H-14);ctx.closePath();
-  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,css('--trace')+'aa');g.addColorStop(1,css('--trace')+'12');
-  ctx.fillStyle=g;ctx.fill();
-  ctx.strokeStyle=css('--trace');ctx.lineWidth=1.5;ctx.beginPath();
-  for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W, y=(H-14)-mags[i]*(H-20);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
-  ctx.stroke();
+/* ---- camera overlay ---- */
+function edgeArrow(ctx,W,H,right,col,txt){
+  const y=H/2,x=right?W-8:8,dir=right?-1:1;
+  ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+dir*22,y-13);ctx.lineTo(x+dir*22,y+13);ctx.closePath();ctx.fill();
+  ctx.font='600 12px '+css('--sans');ctx.textAlign=right?'right':'left';ctx.textBaseline='middle';
+  ctx.fillText(txt,right?W-36:36,y);
 }
-
-/* ---- draw: spectrogram (scroll left) ---- */
-let sgImg=null;
-function drawSgram(mags){
-  const c=$('#sgram'),r=c.getBoundingClientRect(),W=Math.floor(r.width),H=150,ctx=sgCtx;
-  if(!sgImg||sgImg.width!==W){sgImg=ctx.getImageData(0,0,W,H);ctx.fillStyle=css('--panel-2');ctx.fillRect(0,0,W,H);}
-  // shift left by 2px
-  const prev=ctx.getImageData(2,0,W-2,H);ctx.putImageData(prev,0,0);
-  // draw new column(s) at right
-  for(let px=W-2;px<W;px++){
-    for(let y=0;y<H;y++){
-      const f=(1-y/H); const idx=Math.floor(f*(mags.length-1)); const v=mags[idx];
-      const col=viridis(v); ctx.fillStyle=col; ctx.fillRect(px,y,1,1);
-    }
+function drawCamera(az,conf,amb,cls){
+  const r=camOv.getBoundingClientRect(),W=r.width,H=r.height;coctx.clearRect(0,0,W,H);
+  const HFOV=state.hfov,cCol=conf>=.66?css('--good'):conf>=.4?css('--warn'):css('--bad');
+  let a=((az+180)%360)-180;                     // -180..180, 0=front,+=right
+  if(Math.abs(a)<=HFOV/2){
+    const x=W*(0.5+a/HFOV),bw=Math.max(10,(1-conf)*W*0.22+W*0.05);
+    const g=coctx.createLinearGradient(x-bw,0,x+bw,0);g.addColorStop(0,cCol+'00');g.addColorStop(.5,cCol+'66');g.addColorStop(1,cCol+'00');
+    coctx.fillStyle=g;coctx.fillRect(x-bw,0,bw*2,H);
+    coctx.strokeStyle=cCol;coctx.lineWidth=2;coctx.beginPath();coctx.moveTo(x,0);coctx.lineTo(x,H);coctx.stroke();
+    coctx.fillStyle=cCol;coctx.font='700 14px '+css('--sans');coctx.textAlign='center';coctx.textBaseline='top';
+    coctx.fillText(cls!=null?CLASSES[cls]:'聲源',x,8);
+    if(amb){coctx.fillStyle=css('--warn');coctx.font='600 11px '+css('--mono');coctx.textBaseline='bottom';
+      coctx.fillText('或在後方（前後未消歧）',x,H-8);}
+  } else if(Math.abs(a)<90){
+    edgeArrow(coctx,W,H,a>0,cCol,'聲源在畫面外');
+  } else {
+    coctx.fillStyle=css('--ink-soft');coctx.font='600 13px '+css('--mono');coctx.textAlign='center';coctx.textBaseline='middle';
+    coctx.fillText('聲源在後方 · 相機看不到（見雷達）',W/2,H/2);
   }
+  $('#camClass').textContent='研判聲源：'+(cls!=null?CLASSES[cls]:'—')+'（實驗）';
 }
-function viridis(t){t=Math.max(0,Math.min(1,t));
-  // simple perceptual-ish ramp (dark→teal→bright), theme-independent readable
-  const stops=[[13,27,42],[13,80,88],[45,212,191],[214,240,230]];
-  const s=t*(stops.length-1),i=Math.floor(s),f=s-i,a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
-  return`rgb(${a[0]+(b[0]-a[0])*f|0},${a[1]+(b[1]-a[1])*f|0},${a[2]+(b[2]-a[2])*f|0})`;}
 
-/* ---- render one frame (shared by LIVE + DEMO) ---- */
-function render(frame){
-  // EMA smoothing on azimuth (temporal fusion — legit stabilisation)
-  const a=state.smooth;
-  state.azEMA = state.azEMA==null?frame.azimuth: angLerp(state.azEMA,frame.azimuth,1-a);
-  state.lvlEMA= state.lvlEMA==null?frame.level : state.lvlEMA*a+frame.level*(1-a);
-  const az=state.azEMA, conf=frame.confidence, lvl=state.lvlEMA;
-  $('#mAz').textContent=(az<0?az+360:az).toFixed(0);
-  const [cc,ct]=confClass(conf);const cel=$('#mConf');cel.className='conf '+cc;
-  cel.textContent=ct+' ('+conf.toFixed(2)+')';
-  $('#mLvl').textContent=lvl.toFixed(1);
-  drawScene(az,conf);drawSpectrum(frame.spectrum);drawSgram(frame.spectrum);
-  if(frame.class!=null)setClass(frame.class);
-  // fps
-  state.frames++;const now=performance.now();
-  if(now-state.lastT>500){state.fps=Math.round(state.frames/((now-state.lastT)/1000));
-    state.frames=0;state.lastT=now;$('#fps').textContent=state.fps;}
+/* ---- spectrum ---- */
+function drawSpectrum(mags){
+  const c=$('#spec'),r=c.getBoundingClientRect(),W=r.width,H=140,ctx=specCtx;ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle=css('--grid');ctx.fillStyle=css('--ink-soft');ctx.font='10px '+css('--mono');ctx.textAlign='center';ctx.lineWidth=1;
+  [0,2000,4000,6000,8000].forEach(f=>{const x=f/8000*W;ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H-14);ctx.stroke();ctx.globalAlpha=1;ctx.fillText((f/1000)+'k',x,H-2);});
+  const bx0=state.flow/8000*W,bx1=state.fhigh/8000*W;ctx.fillStyle=css('--accent-soft');ctx.fillRect(bx0,0,bx1-bx0,H-14);
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,css('--trace')+'aa');g.addColorStop(1,css('--trace')+'12');
+  ctx.beginPath();for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W,y=(H-14)-mags[i]*(H-20);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.lineTo(W,H-14);ctx.lineTo(0,H-14);ctx.closePath();ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle=css('--trace');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W,y=(H-14)-mags[i]*(H-20);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
 }
+
+/* ---- spectrogram ---- */
+function viridis(t){t=Math.max(0,Math.min(1,t));const s=[[13,27,42],[13,80,88],[45,212,191],[214,240,230]];const u=t*(s.length-1),i=Math.floor(u),f=u-i,a=s[i],b=s[Math.min(i+1,s.length-1)];return`rgb(${a[0]+(b[0]-a[0])*f|0},${a[1]+(b[1]-a[1])*f|0},${a[2]+(b[2]-a[2])*f|0})`;}
+let sgReady=false;
+function drawSgram(mags){
+  const c=$('#sgram'),r=c.getBoundingClientRect(),W=Math.floor(r.width),H=140,ctx=sgCtx;
+  if(!sgReady){ctx.fillStyle=css('--panel-2');ctx.fillRect(0,0,W,H);sgReady=true;}
+  const prev=ctx.getImageData(2,0,W-2,H);ctx.putImageData(prev,0,0);
+  for(let px=W-2;px<W;px++)for(let y=0;y<H;y++){const idx=Math.floor((1-y/H)*(mags.length-1));ctx.fillStyle=viridis(mags[idx]);ctx.fillRect(px,y,1,1);}
+}
+
 function angLerp(a,b,t){let d=((b-a+540)%360)-180;return a+d*t;}
+function render(frame){
+  const a=state.smooth;
+  state.azEMA=state.azEMA==null?frame.azimuth:angLerp(state.azEMA,frame.azimuth,1-a);
+  state.lvlEMA=state.lvlEMA==null?frame.level:state.lvlEMA*a+frame.level*(1-a);
+  const az=(state.azEMA+360)%360,conf=frame.confidence,lvl=state.lvlEMA,amb=!!frame.ambiguous;
+  $('#mAz').textContent=az.toFixed(0);
+  const[cc,ct]=confClass(conf);const cel=$('#mConf');cel.className='conf '+cc;cel.textContent=ct+' ('+conf.toFixed(2)+')';
+  $('#mLvl').textContent=lvl.toFixed(1);
+  drawScene(az,conf,amb);drawCamera(az,conf,amb,frame.class);drawSpectrum(frame.spectrum);drawSgram(frame.spectrum);
+  if(frame.class!=null)setClass(frame.class);
+  state.frames++;const now=performance.now();
+  if(now-state.lastT>500){state.fps=Math.round(state.frames/((now-state.lastT)/1000));state.frames=0;state.lastT=now;$('#fps').textContent=state.fps;}
+}
 
-/* ============================================================================
-   FRAME_CONTRACT — the Jetson backend must emit this JSON per frame on /ws/live
-   {
-     "t":  <ns>,                      // monotonic timestamp
-     "azimuth":     <deg 0..359>,     // fused DoA (onboard + GCC-PHAT)
-     "confidence":  <0..1>,           // peak prominence / agreement / stability
-     "level":       <relative dB>,    // NOT SPL
-     "spectrum":    [<0..1> ...],     // magnitude bins, index 0 = 0 Hz .. last = 8 kHz
-     "class":       <int|null>        // index into CLASSES, optional classifier
-   }
-   Controls the UI sends back (optional): {flow,fhigh,algo,dyn,scale,record}
-   ============================================================================ */
+/* FRAME_CONTRACT: {t, azimuth 0..359, confidence 0..1, level(relative dB),
+   spectrum[0..1] 0Hz..8kHz, class int|null, ambiguous bool} */
 function connectLive(){
   const params=new URLSearchParams(location.search);
-  const url=params.get('ws')|| (location.protocol==='https:'?null:`ws://${location.host}/ws/live`);
+  if(params.get('hfov'))state.hfov=+params.get('hfov');
+  if(params.get('cam')){state.camUrl=params.get('cam');camImg.src=state.camUrl;}
+  const url=params.get('ws')||(location.protocol==='https:'&&!location.host?null:`ws://${location.host}/ws/live`);
   if(!url){startDemo('無 WebSocket（示範模式）');return;}
-  let ws;
-  try{ws=new WebSocket(url);}catch(e){startDemo('連線失敗（示範模式）');return;}
-  const to=setTimeout(()=>{try{ws.close()}catch(e){}; if(state.mode!=='live')startDemo('連線逾時（示範模式）');},2500);
+  let ws;try{ws=new WebSocket(url);}catch(e){startDemo('連線失敗（示範模式）');return;}
+  const to=setTimeout(()=>{try{ws.close()}catch(e){};if(state.mode!=='live')startDemo('連線逾時（示範模式）');},2500);
   ws.onopen=()=>{clearTimeout(to);state.mode='live';
     $('#modeBadge').className='badge live';$('#modeBadge').innerHTML='<span class="dot"></span>● LIVE';
-    $('#src').textContent='XVF3800 即時';$('#camNote').textContent='即時 DoA · 360°';
-    document.querySelector('.warnpill').style.display='none';$('#status').textContent='已連線';};
+    $('#src').textContent='XVF3800 即時';$('#demoPill').style.display='none';$('#status').textContent='已連線';
+    fetch('/api/config').then(r=>r.json()).then(c=>{if(c.camera_hfov_deg)state.hfov=c.camera_hfov_deg;}).catch(()=>{});};
   ws.onmessage=ev=>{try{render(JSON.parse(ev.data));}catch(e){}};
   ws.onerror=()=>{clearTimeout(to);if(state.mode!=='live')startDemo('連線錯誤（示範模式）');};
-  ws.onclose=()=>{if(state.mode!=='live')startDemo('未連線（示範模式）');};
+  ws.onclose=()=>{if(state.mode==='live'){$('#status').textContent='連線中斷';}else startDemo('未連線（示範模式）');};
 }
 
-/* ---- DEMO engine: plausible moving source, honestly labelled ---- */
 let demoTimer=null;
 function startDemo(reason){
-  if(demoTimer)return; state.mode='demo';
-  $('#status').textContent=reason||'示範模式';
-  let t=0, srcAz=40, target=40;
-  const N=128;
+  if(demoTimer)return;state.mode='demo';$('#status').textContent=reason||'示範模式';
+  let t=0,srcAz=40,target=40;const N=128;
   demoTimer=setInterval(()=>{
-    t+=0.05;
-    if(Math.random()<0.02)target=Math.random()*360;
-    srcAz=angLerp(srcAz,target,0.04);
+    t+=0.05;if(Math.random()<0.02)target=Math.random()*360;srcAz=angLerp(srcAz,target,0.04);
     const conf=0.45+0.35*Math.abs(Math.sin(t*0.7))+0.1*Math.random();
     const level=-38+16*Math.abs(Math.sin(t*0.9))+Math.random()*3;
-    // spectrum: 1-2 moving formant bumps within band, capped at 8kHz
     const spectrum=new Array(N);
-    const p1=(state.flow+ (state.fhigh-state.flow)*(0.3+0.2*Math.sin(t)))/8000*N;
-    const p2=(state.flow+ (state.fhigh-state.flow)*(0.6+0.2*Math.cos(t*1.3)))/8000*N;
-    for(let i=0;i<N;i++){
-      let v=0.05+0.04*Math.random();
-      v+=0.8*Math.exp(-((i-p1)**2)/8)+0.5*Math.exp(-((i-p2)**2)/14);
-      spectrum[i]=Math.min(1,v);
-    }
+    const p1=(state.flow+(state.fhigh-state.flow)*(0.3+0.2*Math.sin(t)))/8000*N;
+    const p2=(state.flow+(state.fhigh-state.flow)*(0.6+0.2*Math.cos(t*1.3)))/8000*N;
+    for(let i=0;i<N;i++){let v=0.05+0.04*Math.random();v+=0.8*Math.exp(-((i-p1)**2)/8)+0.5*Math.exp(-((i-p2)**2)/14);spectrum[i]=Math.min(1,v);}
     const cls=level<-34?5:[0,1,2,3,4][Math.floor((Math.sin(t*0.5)+1)/2*5)%5];
-    render({t:t*1e9,azimuth:srcAz,confidence:Math.min(0.98,conf),level,spectrum,class:cls});
+    render({t:t*1e9,azimuth:(srcAz+360)%360,confidence:Math.min(0.72,conf),level,spectrum,class:cls,ambiguous:true});
   },50);
 }
 
-/* boot */
-fitScene();
-connectLive();
+fitScene();fitCam();connectLive();
+
+// 相機面板 JavaScript (P0 實驗)
+(()=>{
+  const overlay=document.getElementById('doa-overlay');
+  if(!overlay)return;
+  const ctx=overlay.getContext('2d');
+  const CAM_HFOV=70,CAM_W=640,CAM_H=480;
+  overlay.width=CAM_W;overlay.height=CAM_H;
+
+  // 監聽 WebSocket frame
+  const orig_render=window.render;
+  window.render=(frame)=>{
+    if(orig_render)orig_render(frame);
+    if(!frame)return;
+
+    document.getElementById('cam-az').textContent=frame.azimuth+'°';
+    document.getElementById('cam-conf').textContent=(frame.confidence*100|0)+'%';
+    document.getElementById('cam-amb').textContent=frame.ambiguous?'未消歧':'消歧';
+
+    // 繪製方向帶
+    ctx.clearRect(0,0,CAM_W,CAM_H);
+    const az=frame.azimuth;
+    let az_norm=az>180?az-360:az;
+
+    if(Math.abs(az_norm)<=CAM_HFOV/2){
+      const x=CAM_W*(0.5+az_norm/CAM_HFOV);
+      const w=8+(1-frame.confidence)*24;
+      let c='rgba(74,222,128,0.6)';
+      if(frame.confidence<0.7)c=frame.confidence<0.4?'rgba(248,113,113,0.6)':'rgba(251,191,36,0.6)';
+      ctx.fillStyle=c;ctx.fillRect(x-w/2,0,w,CAM_H);
+      ctx.fillStyle='#e6f0f1';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+      ctx.fillText(['語','馬','風','敲','械','靜'][frame.class||0]+' '+((frame.confidence*100|0)+'%'),x,20);
+      if(frame.ambiguous){ctx.font='11px sans-serif';ctx.fillStyle='#fbbf24';ctx.fillText('或後',x,35);}
+    }
+  };
+})();
 </script>

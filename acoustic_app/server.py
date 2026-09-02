@@ -66,24 +66,47 @@ async def init_camera():
 
     print("[INIT] 初始化摄像头...")
     try:
-        # 尝试打开摄像头（用设备号而非路径）
-        # /dev/video0 对应 index 0
-        cap = cv2.VideoCapture(0)
+        # 打开 /dev/video0 (C922 主设备)
+        cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
 
         if not cap.isOpened():
-            print("[CAMERA] 错误: 无法打开设备 0")
+            print("[CAMERA] 错误: 无法打开 /dev/video0")
             camera_ready = False
             return False
+
+        # 尝试设置 MJPG 编码（很多 UVC 摄像头需要）
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        cap.set(cv2.CAP_PROP_FOURCC, fourcc)
 
         # 设置分辨率和帧率
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
         cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # 最小缓冲
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
+        # 测试读取一帧，检查亮度
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            print("[CAMERA] 错误: 无法读取帧")
+            cap.release()
+            camera_ready = False
+            return False
+
+        # 计算平均亮度（灰度化 → 平均像素值）
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        brightness = np.mean(gray)
+        print(f"[CAMERA] 首帧亮度: {brightness:.1f}")
+
+        if brightness < 10:
+            print("[CAMERA] 错误: 画面太黑（亮度<10），可能是全黑或摄像头开不了")
+            cap.release()
+            camera_ready = False
+            return False
+
+        # 成功
         camera = cap
         camera_ready = True
-        print(f"[CAMERA] 已打开 {CAMERA_DEVICE} ({CAMERA_WIDTH}x{CAMERA_HEIGHT}@{CAMERA_FPS}fps)")
+        print(f"[CAMERA] ✓ 已打开 /dev/video0 ({CAMERA_WIDTH}x{CAMERA_HEIGHT}@{CAMERA_FPS}fps, 亮度={brightness:.1f})")
         return True
 
     except Exception as e:
