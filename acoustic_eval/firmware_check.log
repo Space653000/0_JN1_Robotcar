@@ -1,0 +1,16 @@
+=== 檢查 PulseAudio 設備 ===
+1	alsa_output.usb-Seeed_Studio_reSpeaker_XVF3800_4-Mic_Array_114993701254100107-00.analog-stereo.monitor	module-alsa-card.c	s16le 2ch 16000Hz	SUSPENDED
+2	alsa_input.usb-Seeed_Studio_reSpeaker_XVF3800_4-Mic_Array_114993701254100107-00.analog-stereo	module-alsa-card.c	s16le 2ch 16000Hz	SUSPENDED
+
+=== 檢查 JACK ===
+✗ JACK 未安裝
+
+=== 檢查 xvf_host / xvf_firmware ===
+✗ xvf_host 不在 PATH
+✗ /usr/local/bin 無 xvf_*
+
+=== USB 固件/韌體版本 ===
+  bcdDevice            2.05
+      bInterfaceSubClass      1 Device Firmware Update
+      bInterfaceSubClass      1 Device Firmware Update
+      Device Firmware Upgrade Interface Descriptor:
