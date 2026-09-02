@@ -399,80 +399,85 @@ async def frame_generator():
 
     try:
         while True:
-            frame_start = time.perf_counter()
-            t_loop_start = time.perf_counter()
+            try:
+                frame_start = time.perf_counter()
+                t_loop_start = time.perf_counter()
 
-            # 讀一個 block
-            t_audio_start = time.perf_counter()
-            audio_2ch = audio_capture.read_block()
-            if audio_2ch is None:
-                print("[ERROR] 讀音訊失敗")
-                yield {"error": "Audio read failed"}
-                break
-            audio_read_ms = (time.perf_counter() - t_audio_start) * 1000
+                # 讀一個 block
+                t_audio_start = time.perf_counter()
+                audio_2ch = audio_capture.read_block()
+                if audio_2ch is None:
+                    print("[ERROR] 讀音訊失敗")
+                    yield {"error": "Audio read failed"}
+                    break
+                audio_read_ms = (time.perf_counter() - t_audio_start) * 1000
 
-            # 計算幀
-            t_frame_start = time.perf_counter()
-            frame = compute_frame(
-                audio_2ch,
-                sr=AUDIO_SR,
-                doa_estimator=doa_estimator,
-                spectrum_analyzer=spectrum_analyzer,
-                timestamp_ns=int(time.time_ns())
-            )
-            frame_build_ms = (time.perf_counter() - t_frame_start) * 1000
+                # 計算幀
+                t_frame_start = time.perf_counter()
+                frame = compute_frame(
+                    audio_2ch,
+                    sr=AUDIO_SR,
+                    doa_estimator=doa_estimator,
+                    spectrum_analyzer=spectrum_analyzer,
+                    timestamp_ns=int(time.time_ns())
+                )
+                frame_build_ms = (time.perf_counter() - t_frame_start) * 1000
 
-            if frame:
-                # 提取計時數據
-                if '_timing' in frame:
-                    timings['gcc_ms'].append(frame['_timing']['gcc_ms'])
-                    timings['spectrum_ms'].append(frame['_timing']['spectrum_ms'])
-                    del frame['_timing']
+                if frame:
+                    # 提取計時數據
+                    if '_timing' in frame:
+                        timings['gcc_ms'].append(frame['_timing']['gcc_ms'])
+                        timings['spectrum_ms'].append(frame['_timing']['spectrum_ms'])
+                        del frame['_timing']
 
-                timings['audio_read_ms'].append(audio_read_ms)
-                timings['frame_build_ms'].append(frame_build_ms)
+                    timings['audio_read_ms'].append(audio_read_ms)
+                    timings['frame_build_ms'].append(frame_build_ms)
 
-                # 記錄原始方位到緩衝（用於校準）
-                raw_azimuth = frame['azimuth']
-                azimuth_buffer.append(raw_azimuth)
+                    # 記錄原始方位到緩衝（用於校準）
+                    raw_azimuth = frame['azimuth']
+                    azimuth_buffer.append(raw_azimuth)
 
-                # 應用 offset：azimuth = (raw - AZIMUTH_OFFSET + 360) % 360
-                frame['azimuth'] = int((raw_azimuth - AZIMUTH_OFFSET + 360) % 360)
+                    # 應用 offset：azimuth = (raw - AZIMUTH_OFFSET + 360) % 360
+                    frame['azimuth'] = int((raw_azimuth - AZIMUTH_OFFSET + 360) % 360)
 
-                frame_count += 1
+                    frame_count += 1
 
-                t_send = time.perf_counter()
-                yield frame
-                ws_send_ms = (time.perf_counter() - t_send) * 1000
-                timings['ws_send_ms'].append(ws_send_ms)
+                    t_send = time.perf_counter()
+                    yield frame
+                    ws_send_ms = (time.perf_counter() - t_send) * 1000
+                    timings['ws_send_ms'].append(ws_send_ms)
 
-                # 保存到效能統計緩衝
-                try:
-                    timing_buffer.append(TimingFrame(
-                        ts=time.time(),
-                        audio_read=audio_read_ms,
-                        gcc=timings['gcc_ms'][-1] if timings['gcc_ms'] else 0,
-                        spectrum=timings['spectrum_ms'][-1] if timings['spectrum_ms'] else 0,
-                        frame_build=frame_build_ms,
-                        ws_send=ws_send_ms
-                    ))
-                except:
-                    pass
+                    # 保存到效能統計緩衝
+                    try:
+                        timing_buffer.append(TimingFrame(
+                            ts=time.time(),
+                            audio_read=audio_read_ms,
+                            gcc=timings['gcc_ms'][-1] if timings['gcc_ms'] else 0,
+                            spectrum=timings['spectrum_ms'][-1] if timings['spectrum_ms'] else 0,
+                            frame_build=frame_build_ms,
+                            ws_send=ws_send_ms
+                        ))
+                    except:
+                        pass
 
-                # 每 ~5 秒印出統計
-                if frame_count % int(TARGET_FPS * 5) == 0:
-                    print(f"\n[STATS @ frame {frame_count}]")
-                    for key in timings:
-                        if timings[key]:
-                            vals = sorted(timings[key])
-                            median = vals[len(vals)//2]
-                            print(f"  {key}: {median:.1f}ms (median)")
+                    # 每 ~5 秒印出統計
+                    if frame_count % int(TARGET_FPS * 5) == 0:
+                        print(f"\n[STATS @ frame {frame_count}]")
+                        for key in timings:
+                            if timings[key]:
+                                vals = sorted(timings[key])
+                                median = vals[len(vals)//2]
+                                print(f"  {key}: {median:.1f}ms (median)")
 
-            # 節流：每幀約 1/TARGET_FPS 秒（50ms @ 20fps）
-            dt = (time.perf_counter() - frame_start) * 1000  # 毫秒
-            sleep_time = max(0.0, (1.0 / TARGET_FPS) - (dt / 1000))
-            if sleep_time > 0:
-                await asyncio.sleep(sleep_time)
+                # 節流：每幀約 1/TARGET_FPS 秒（50ms @ 20fps）
+                dt = (time.perf_counter() - frame_start) * 1000  # 毫秒
+                sleep_time = max(0.0, (1.0 / TARGET_FPS) - (dt / 1000))
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+
+            except Exception as frame_error:
+                print(f"[FRAME_ERROR] {frame_error}", flush=True)
+                continue
 
     except Exception as e:
         print(f"[ERROR] 流處理異常: {e}")

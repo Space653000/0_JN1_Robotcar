@@ -369,7 +369,18 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
     # 4. 分類
     class_idx, _class_conf = SimpleClassifier.classify(ch0, level_db)
 
-    # 5. 組裝 FRAME_CONTRACT
+    # 5. 組裝 FRAME_CONTRACT 並清洗 NaN/inf
+    # 安全值設定
+    if np.isnan(azimuth) or np.isinf(azimuth):
+        azimuth = 0
+    if np.isnan(confidence) or np.isinf(confidence):
+        confidence = 0.0
+    if np.isnan(level_db) or np.isinf(level_db):
+        level_db = -120.0
+
+    # 清洗頻譜中的 NaN/inf
+    spectrum = np.nan_to_num(np.array(spectrum), nan=0.0, posinf=1.0, neginf=0.0).tolist()
+
     frame = {
         't': timestamp_ns,
         'azimuth': int(azimuth),
