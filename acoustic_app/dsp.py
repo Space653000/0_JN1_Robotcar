@@ -153,9 +153,11 @@ class DOAEstimator:
     def estimate_doa(self, ch0, ch1):
         """融合板载 DoA + GCC-PHAT
 
-        返回: (azimuth_deg_0_359, confidence_0_1, info_dict)
+        返回: (azimuth_deg_0_359, confidence_0_1, ambiguous, info_dict)
+        其中 ambiguous=true 表示有前后模糊（只用 GCC-PHAT）
         """
         info = {'method': 'none', 'gcc_delay': None, 'gcc_strength': None, 'onboard': None}
+        ambiguous = False  # 是否有前后模糊
 
         # 1. 尝试读板载 DoA
         onboard_angle, onboard_conf = self.try_read_onboard_doa()
@@ -177,6 +179,7 @@ class DOAEstimator:
             consistency = 1.0 - min(abs(onboard_angle - gcc_angle) / 180.0, 1.0)
             confidence = 0.7 * onboard_conf + 0.3 * (peak_strength * consistency)
             info['method'] = 'hybrid (onboard + gcc)'
+            ambiguous = False  # 有板载 DoA 消歧
         else:
             # 无板载 DoA：只用 GCC-PHAT，但置信度要压低
             # 因为 GCC-PHAT 无法消歧前后
@@ -184,6 +187,7 @@ class DOAEstimator:
             azimuth = gcc_angle_360 % 360
             confidence = peak_strength * 0.5  # 压低置信度，表示不确定前后
             info['method'] = 'gcc-phat only (low confidence)'
+            ambiguous = True  # 有前后模糊
 
         # 保存历史用于时间稳定度
         self.gcc_history.append((azimuth, confidence))
@@ -199,7 +203,7 @@ class DOAEstimator:
             stability = 1.0 / (1.0 + angle_std / 30.0)  # 30° 标准差时稳定性 = 0.5
             confidence = confidence * 0.8 + stability * 0.2
 
-        return azimuth, np.clip(confidence, 0.0, 1.0), info
+        return azimuth, np.clip(confidence, 0.0, 1.0), ambiguous, info
 
 
 class SpectrumAnalyzer:
@@ -314,10 +318,10 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
         spectrum_analyzer = SpectrumAnalyzer(sr)
     spectrum = spectrum_analyzer.compute_spectrum(ch0).tolist()
 
-    # 3. 方位角 + 置信度
+    # 3. 方位角 + 置信度 + 消歧标志
     if doa_estimator is None:
         doa_estimator = DOAEstimator(sr)
-    azimuth, confidence, _info = doa_estimator.estimate_doa(ch0, ch1)
+    azimuth, confidence, ambiguous, _info = doa_estimator.estimate_doa(ch0, ch1)
 
     # 4. 分类
     class_idx, _class_conf = SimpleClassifier.classify(ch0, level_db)
@@ -329,7 +333,8 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
         'confidence': float(confidence),
         'level': float(level_db),
         'spectrum': spectrum,
-        'class': class_idx
+        'class': class_idx,
+        'ambiguous': bool(ambiguous)  # true = 前后模糊（只用 GCC-PHAT）
     }
 
     return frame
