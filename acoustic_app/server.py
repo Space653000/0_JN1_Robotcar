@@ -18,6 +18,7 @@ import cv2
 from dsp import AudioCapture, DOAEstimator, SpectrumAnalyzer, compute_frame
 import sys
 import io
+import httpx
 
 # ============================================================================
 # 配置
@@ -173,6 +174,26 @@ async def get_config():
         "camera_width": CAMERA_WIDTH,
         "camera_height": CAMERA_HEIGHT
     }
+
+
+@app.get("/frame.jpg")
+async def proxy_frame():
+    """代理 perception 的相机幀（MJPEG 轮询用）"""
+    try:
+        async with httpx.AsyncClient(timeout=1.0) as client:
+            r = await client.get("http://127.0.0.1:8001/frame.jpg")
+            if r.status_code == 200:
+                return StreamingResponse(
+                    io.BytesIO(r.content),
+                    media_type="image/jpeg"
+                )
+    except Exception as e:
+        print(f"[PROXY] /frame.jpg 代理失败: {e}")
+    return StreamingResponse(
+        io.BytesIO(b""),
+        status_code=503,
+        media_type="text/plain"
+    )
 
 
 def generate_dummy_frame():
@@ -333,11 +354,11 @@ async def websocket_endpoint(websocket: WebSocket):
 async def startup_event():
     """启动时初始化"""
     audio_ok = await init_audio()
-    camera_ok = await init_camera()
+    # camera_ok = await init_camera()  # 禁用本地相机（由代理端点 /frame.jpg 从 perception 获取）
     if not audio_ok:
         print("[FATAL] 无法初始化音频，某些功能将不可用")
-    if not camera_ok:
-        print("[WARN] 无法初始化摄像头，将以音频模式运行")
+    # if not camera_ok:
+    #     print("[WARN] 无法初始化摄像头，将以音频模式运行")
 
 
 @app.on_event("shutdown")

@@ -427,3 +427,26 @@ fitScene();fitCam();connectLive();
   };
 })();
 </script>
+
+<!-- inject start: camera frame polling -->
+<script>
+(function(){
+  var img=document.getElementById('cam'), msg=document.getElementById('camMsg');
+  if(!img)return;
+  var fail=0;
+  function poll(){
+    fetch('/frame.jpg?t='+Date.now(),{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.blob(); })
+      .then(function(b){
+        var u=URL.createObjectURL(b), old=img.src; img.src=u;
+        if(old && old.indexOf('blob:')===0) URL.revokeObjectURL(old);
+        if(msg) msg.textContent='● 相機即時（視覺服務）'; fail=0;
+        setTimeout(poll,90);
+      })
+      .catch(function(){ fail++; if(msg) msg.textContent='相機離線';
+        setTimeout(poll, fail>4?2500:600); });
+  }
+  poll();
+})();
+</script>
+<!-- inject end: camera frame polling -->
