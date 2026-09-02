@@ -1,0 +1,37 @@
+# XVF3800 裝置設定備份 — 2026-09-02
+# 保存時間: Wed Sep  2 11:02:29 AM CST 2026
+
+## ALSA 硬體參數
+Recording WAVE 'stdin' : Unsigned 8 bit, Rate 8000 Hz, Mono
+HW Params of device "hw:1,0":
+--------------------
+ACCESS:  MMAP_INTERLEAVED RW_INTERLEAVED
+FORMAT:  S16_LE
+SUBFORMAT:  STD
+SAMPLE_BITS: 16
+FRAME_BITS: 32
+CHANNELS: 2
+RATE: 16000
+PERIOD_TIME: [1000 1000000]
+PERIOD_SIZE: [16 16000]
+PERIOD_BYTES: [64 64000]
+PERIODS: [2 1024]
+BUFFER_TIME: [2000 2000000]
+BUFFER_SIZE: [32 32000]
+BUFFER_BYTES: [128 128000]
+TICK_TIME: ALL
+--------------------
+arecord: set_params:1352: Sample format non available
+
+## /proc/asound 資訊
+ 1 [Array          ]: USB-Audio - reSpeaker XVF3800 4-Mic Array
+                      Seeed Studio reSpeaker XVF3800 4-Mic Array at usb-3610000.usb-2.2, high speed
+
+## USB 設備描述
+  idVendor           0x2886 Seeed Technology Co., Ltd.
+  idProduct          0x001a 
+  bcdDevice            2.05
+        bNrChannels             2
+        bNrChannels             2
+        bNrChannels             2
+        bNrChannels             2
