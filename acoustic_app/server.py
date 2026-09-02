@@ -36,6 +36,19 @@ CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_FPS = 15
 
+# 方位角偏移校准（存档路径）
+OFFSET_FILE = Path(__file__).parent / "azimuth_offset.txt"
+AZIMUTH_OFFSET = 0.0
+
+# 加载已保存的 offset
+if OFFSET_FILE.exists():
+    try:
+        AZIMUTH_OFFSET = float(OFFSET_FILE.read_text().strip())
+        print(f"[INIT] 已加载 AZIMUTH_OFFSET = {AZIMUTH_OFFSET}°")
+    except Exception as e:
+        print(f"[WARN] 无法加载 offset 文件: {e}")
+        AZIMUTH_OFFSET = 0.0
+
 app = FastAPI(title="Jetson Acoustic DoA + Camera")
 
 # 静态文件
@@ -50,6 +63,10 @@ audio_capture = None
 doa_estimator = None
 spectrum_analyzer = None
 audio_ready = False
+
+# 校准缓冲（最近 ~2 秒的原始方位，用于校准）
+import collections
+azimuth_buffer = collections.deque(maxlen=int(2 * TARGET_FPS))  # 40 帧 @ 20fps
 
 # 全局摄像头对象
 camera = None
@@ -196,6 +213,40 @@ async def proxy_frame():
     )
 
 
+@app.post("/api/calibrate_front")
+async def calibrate_front():
+    """校准正前方（将缓冲中位数设为 offset）"""
+    global AZIMUTH_OFFSET
+
+    if len(azimuth_buffer) < 10:
+        return {
+            "ok": False,
+            "error": f"缓冲不足 ({len(azimuth_buffer)} < 10)"
+        }
+
+    # 计算中位数
+    buffer_list = list(azimuth_buffer)
+    median_angle = float(np.median(buffer_list))
+
+    # 设置 offset：使得 calibrate 时的中位数变成 0°
+    AZIMUTH_OFFSET = median_angle
+
+    # 存档
+    try:
+        OFFSET_FILE.write_text(str(AZIMUTH_OFFSET))
+        print(f"[CALIB] AZIMUTH_OFFSET 已保存: {AZIMUTH_OFFSET}°")
+    except Exception as e:
+        print(f"[CALIB] 存档失败: {e}")
+        return {"ok": False, "error": str(e)}
+
+    return {
+        "ok": True,
+        "offset": AZIMUTH_OFFSET,
+        "samples": len(buffer_list),
+        "median": median_angle
+    }
+
+
 def generate_dummy_frame():
     """生成虚拟画面（黑色+文字）"""
     frame = np.zeros((CAMERA_HEIGHT, CAMERA_WIDTH, 3), dtype=np.uint8)
@@ -302,6 +353,13 @@ async def frame_generator():
             )
 
             if frame:
+                # 记录原始方位到缓冲（用于校准）
+                raw_azimuth = frame['azimuth']
+                azimuth_buffer.append(raw_azimuth)
+
+                # 应用 offset：azimuth = (raw - AZIMUTH_OFFSET + 360) % 360
+                frame['azimuth'] = int((raw_azimuth - AZIMUTH_OFFSET + 360) % 360)
+
                 frame_count += 1
                 yield frame
 

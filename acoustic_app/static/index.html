@@ -450,3 +450,41 @@ fitScene();fitCam();connectLive();
 })();
 </script>
 <!-- inject end: camera frame polling -->
+
+<!-- inject start: calibration button -->
+<script>
+(function(){
+  // 创建校准按钮
+  var btn = document.createElement('button');
+  btn.textContent = '🎯 校准正前方';
+  btn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:12px 16px;font-size:14px;' +
+    'background:#4ade80;color:#000;border:none;border-radius:8px;cursor:pointer;' +
+    'box-shadow:0 4px 8px rgba(0,0,0,0.3);z-index:9999;font-weight:bold;';
+
+  btn.onmouseover = function() { this.style.background = '#22c55e'; };
+  btn.onmouseout = function() { this.style.background = '#4ade80'; };
+
+  btn.onclick = function() {
+    btn.disabled = true;
+    btn.textContent = '校准中...';
+    fetch('/api/calibrate_front', {method:'POST'})
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          alert('✅ 已把目前方向设为正前方 0°\n' +
+                '（offset=' + data.offset.toFixed(1) + '°，样本=' + data.samples + '）');
+        } else {
+          alert('❌ 校准失败: ' + data.error);
+        }
+      })
+      .catch(e => alert('❌ 请求失败: ' + e))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🎯 校准正前方';
+      });
+  };
+
+  document.body.appendChild(btn);
+})();
+</script>
+<!-- inject end: calibration button -->
