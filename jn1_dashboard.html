@@ -100,11 +100,11 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;pad
     <div class="txt">
       <h1>🤖 JN1 Robotcar 儀表板</h1>
       <div class="sub">Seeed reComputer Super J4012 ｜ Jetson Orin NX 16GB ｜ JetPack 6.2 / CUDA 12.6</div>
-      <p>聽（SenseVoice）、看-偵測（YOLO）、讀（OCR）、想（qwen2.5:3b＋代理）已到頂並穩定；說（Piper 堪用）；看懂由 llava 堪用。<b>M19–M26 稽核修復</b>：查出本地主腦 qwen/llava 竟曾遺失（M9 換 ollama-new 空 volume 所致），已 re-pull＋改掛載點到 <code>/data</code> 讓模型<b>持久化（重啟不丟，本機 6.3G）</b>，實測 qwen 推理回「2」、brain <code>/ask</code> 回真答（source:llm）＋TTS 播放 ✓。moondream2 transformers 路 9 次後結案。滿載剩 5.7G RAM（乾淨態 6.1G）。移動採購＝<b>CONDITIONAL BUY</b>；雲端增強＝<b>GO WITH CONDITIONS</b>。</p>
+      <p>聽（SenseVoice）、看-偵測（YOLO）、讀（OCR）、想（qwen2.5:3b＋代理）已到頂並穩定；說（Piper 堪用）；看懂由 llava 堪用。<b>M19–M26 稽核修復</b>：查出本地主腦 qwen/llava 竟曾遺失（M9 換 ollama-new 空 volume 所致），已 re-pull＋改掛載點到 <code>/data</code> 讓模型<b>持久化（重啟不丟，本機 6.3G）</b>，實測 qwen 推理回「2」、brain <code>/ask</code> 回真答（source:llm）＋TTS 播放 ✓。moondream2 transformers 路 9 次後結案。<b style="color:var(--good)">Gemini 雲端顧問已上線</b>（brain 本地先答·難題自動問 Gemini·斷網退本地，M37 全鏈實測 ✓）。滿載剩 ~3.5G RAM。移動採購＝<b>CONDITIONAL BUY</b>。</p>
     </div>
     <div class="ring">
-      <svg width="132" height="132"><circle cx="66" cy="66" r="58" fill="none" stroke="var(--line)" stroke-width="11"/><circle cx="66" cy="66" r="58" fill="none" stroke="var(--accent)" stroke-width="11" stroke-linecap="round" stroke-dasharray="364.4 364.4" stroke-dashoffset="0" style="stroke-dasharray:200 364.4"/></svg>
-      <div class="pct"><b>~55%</b><span>軟體主線</span></div>
+      <svg width="132" height="132"><circle cx="66" cy="66" r="58" fill="none" stroke="var(--line)" stroke-width="11"/><circle cx="66" cy="66" r="58" fill="none" stroke="var(--accent)" stroke-width="11" stroke-linecap="round" stroke-dasharray="364.4 364.4" stroke-dashoffset="0" style="stroke-dasharray:226 364.4"/></svg>
+      <div class="pct"><b>~62%</b><span>軟體主線</span></div>
     </div>
   </div>
 
@@ -138,7 +138,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;pad
       <div class="layer"><div class="lname">⚙️ 韌體/OS</div><div class="litems">JetPack 6.2 家族 · L4T <b>R36.4.7</b>（2025-09-18）· kernel <b>5.15.148-tegra</b> · Ubuntu 22.04 ARM64 · CUDA <b>12.6.11</b>（nvcc V12.6.85）· Docker <b>29.7.2</b> / Compose v5.5.0 · nvidia runtime。</div></div>
       <div class="layer"><div class="lname">🤖 模型 AI</div><div class="litems">聽 <b>SenseVoice</b> int8（zh-en-ja-ko-yue）· 說 <b>Piper</b>（zh_CN-huayan-medium）· 看 <b>YOLO11n</b>（/dev/video0）· 讀 <b>PaddleOCR</b> · 想 <b>qwen2.5:3b</b>（實測推理✓）· 看懂 <b>llava</b>（堪用）——均已 re-pull、持久化於 /data。備援檔已下載：CosyVoice2-0.5B（待整合）、moondream2 3.6G（結案）。</div></div>
       <div class="layer"><div class="lname">🧩 應用/UX</div><div class="litems">8 個 Docker 微服務（asr 0.2.0／tts／vision／brain 0.2.0／perception 1.0.0／ocr 0.1.0／webui 1.0.0／ollama）· 自建 Agent 意圖路由＋反幻覺（brain/tools.py）· Cloudflare 手機遠端＋登入密碼 · 共 157 檔（src 11／docker 22／ops 16）。</div></div>
-      <div class="layer"><div class="lname">☁️ 雲端增強</div><div class="litems">評估完成：OpenRouter Free(B 案，先做)＋Gemini Robotics-ER 2(延後)。定位＝可失敗/可拔的外部專家，永不成依賴。</div></div>
+      <div class="layer"><div class="lname">☁️ 雲端增強</div><div class="litems"><b style="color:var(--good)">已上線</b>：cloud-gw → <b>Google Gemini</b>（gemini-3.6-flash，免費層）。brain 本地先答、難題自動問 Gemini、斷網退本地。定位＝可失敗/可拔，刪 key 退純本地、離線照常。（棄 OpenRouter，改用 Gemini 免費層。）</div></div>
       <div class="layer fut"><div class="lname">🦿 移動層 FUTURE</div><div class="litems">（採購後）ROSOrin 車體：STM32F407 底層板(USB-serial)·Mecanum·COIN-D6 光達·Aurora930 RGB-D·6DOF 手臂·ROS2 Humble·Nav2/SLAM。</div></div>
     </div>
     <div class="tblwrap" style="margin-top:14px"><table>
@@ -151,8 +151,9 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;pad
       <tr><td class="cap">brain</td><td class="now">robotcar-brain:0.2.0</td><td>21500</td><td class="goal">qwen2.5:3b＋Agent</td><td><span class="st s-done">ok</span></td></tr>
       <tr><td class="cap">ollama</td><td class="now">dustynv/ollama:0.6.8-cu126</td><td>11434（內）</td><td class="goal">qwen2.5:3b＋llava（持久 /data 6.3G）</td><td><span class="st s-done">ok</span></td></tr>
       <tr><td class="cap">webui</td><td class="now">robotcar-webui:1.0.0</td><td>8080</td><td class="goal">手機遠端 UI</td><td><span class="st s-done">ok</span></td></tr>
+      <tr><td class="cap">cloud-gw</td><td class="now">robotcar-brain 映像（複用）</td><td>8010（內網8000）</td><td class="goal"><b>Gemini</b> gemini-3.6-flash 顧問</td><td><span class="st s-done">ok</span></td></tr>
     </table></div>
-    <div class="memnote">M19 實測：8 服務全 Up；health 端點 8003/8004/8001/21500 實測 ok。＊vision 無 host 埠（只 8000/tcp 內網），由 brain 綜合 health 的 <code>services.vision:true</code> 確認健康（curl 摸不到是因為容器沒裝 curl＋沒發布埠，非掛機）。<br>✅ <b>M19–M26 修復完成</b>：曾查出 qwen/llava 遺失（M9 換 ollama-new 空 volume）→ 已 re-pull＋把掛載點從 <code>/root/.ollama</code> 改到 <code>/data</code> 讓模型<b>真持久化</b>（本機 6.3G、<code>restart</code> 後仍在）；實測 qwen 直接推理回「2」、brain <code>/ask</code> 回真答（source:llm）＋TTS 播放。教訓：health 綠燈≠能推理，之後「真·推理煙霧測試」列為常規驗收。</div>
+    <div class="memnote">現 <b>9 服務</b>全 Up（原 8 ＋ cloud-gw）；health 端點 8003/8004/8001/21500 實測 ok。＊vision 無 host 埠（只 8000/tcp 內網），由 brain 綜合 health 的 <code>services.vision:true</code> 確認健康（curl 摸不到是因為容器沒裝 curl＋沒發布埠，非掛機）。<br>✅ <b>M19–M26 修復完成</b>：曾查出 qwen/llava 遺失（M9 換 ollama-new 空 volume）→ 已 re-pull＋把掛載點從 <code>/root/.ollama</code> 改到 <code>/data</code> 讓模型<b>真持久化</b>（本機 6.3G、<code>restart</code> 後仍在）；實測 qwen 直接推理回「2」、brain <code>/ask</code> 回真答（source:llm）＋TTS 播放。教訓：health 綠燈≠能推理，之後「真·推理煙霧測試」列為常規驗收。</div>
   </section>
 
   <!-- 03 -->
@@ -164,7 +165,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;pad
       <div class="card"><h3>GPU</h3><div class="big">閒 0% / 載 64%</div><p>動態分配，AI 與未來 SLAM 需共享調度。</p></div>
       <div class="card"><h3>儲存 NVMe</h3><div class="big">剩 397G</div><p>915G 總量、已用 482G（55%）。溫度 47°C／功耗 ~10W，遠低於 80°C 與 25W。</p></div>
     </div>
-    <div class="watch">⚠️ <b>兩個要注意</b>：① 有 1 顆 CPU 核心持續 100%（疑空轉，查掉多還一核）。② 只有「視覺 SLAM＋重 VLM 同時」才搶 GPU。</div>
+    <div class="watch">⚠️ <b>三個要注意</b>：① 有 1 顆 CPU 核心持續 100%（疑空轉）。② 只有「視覺 SLAM＋重 VLM 同時」才搶 GPU。③ 並發「多個模型冷載入」偶發 cudaMalloc OOM（暫時；qwen keep-alive 有緩衝，brain /ask 實測正常）。</div>
     <div class="callout"><h3 style="color:var(--accent-ink)">🦿 能不能扛移動？</h3><p>✅ RAM 剩 5.7G 足夠 ROS＋SLAM；⚠️ CPU 滿載時剩 2–3 核（緊但可行）；建議 SLAM 走 CPU-only ORB-SLAM2、綁核 0–6，qwen 不降級。結論：<b>可扛移動，但需精細資源調度</b>；不建議 AI 滿載＋視覺 SLAM 同時高負載。</p></div>
   </section>
 
@@ -204,7 +205,7 @@ Thank you!</pre>
     <div class="sec-head"><span class="n">05</span><h2>雲端 AI 增強評估</h2><p>本地永久主腦 ＋ 可失敗的雲端專家 ｜ 結論 GO WITH CONDITIONS</p></div>
     <div class="tblwrap"><table>
       <tr><th>案</th><th>組合</th><th>定位</th><th>建議</th></tr>
-      <tr><td class="cap">B</td><td class="now">qwen ＋ OpenRouter Free</td><td class="goal">一般專家(coding/ROS2 debug/知識)，HTTP，RAM ~100–200MB</td><td><span class="st s-wip">現在做</span></td></tr>
+      <tr><td class="cap">B✔</td><td class="now">qwen ＋ <b>Gemini Flash</b>（免費層）</td><td class="goal">一般專家(coding/ROS2 debug/知識)；本地先答·弱才問·斷網退本地</td><td><span class="st s-done">已上線</span></td></tr>
       <tr><td class="cap">A/C</td><td class="now">＋ Gemini Robotics-ER 2</td><td class="goal">即時具身/空間推理專家(串流)，RAM ~250–400MB</td><td><span class="st s-todo">車體到位後</span></td></tr>
     </table></div>
     <div class="callout"><h3 style="color:var(--accent-ink)">🧠 大腦怎麼安排</h3><p>本地<b>永遠先答</b>（刪光 key＝退回純本地、功能不變）；本地沒把握才「舉手」問雲端；雲端回的<b>只是建議</b>，實體動作一律回 <b>本地 Validation → Safety Gateway</b>，雲端<b>永不</b>碰 motor/cmd_vel/servo/actuator/shell。gateway 獨立可殺，斷網/429/timeout 都不影響主腦(fail-open＋bounded queue＋DROP stale frame)。</p></div>
@@ -220,7 +221,7 @@ Thank you!</pre>
       <div class="step"><div class="num">2</div><div class="sd"><b>看到 → 認得物件</b>　YOLO 偵測＋OCR</div><span class="st s-done">具備</span></div>
       <div class="step"><div class="num">3</div><div class="sd"><b>手機遠端控制</b>　Cloudflare＋密碼</div><span class="st s-done">具備</span></div>
       <div class="step"><div class="num">4</div><div class="sd"><b>看懂場景並描述</b>　llava 堪用；升級走 ollama/雲端</div><span class="st s-wip">部分</span></div>
-      <div class="step"><div class="num">5</div><div class="sd"><b>雲端專家求援</b>　OpenRouter(先)＋Gemini(後)</div><span class="st s-todo">評估完·待做</span></div>
+      <div class="step"><div class="num">5</div><div class="sd"><b>雲端專家求援</b>　Gemini 顧問（本地先答·難題問雲端·斷網退本地）</div><span class="st s-done">具備</span></div>
       <div class="step"><div class="num">6</div><div class="sd"><b>自主移動／導航／抓取</b>　ROSOrin 車體＋ROS2</div><span class="st s-todo">待採購</span></div>
     </div>
     <div class="memnote">目前完成度：<b>聽/想/偵測/讀/遠端已具備</b>；<b>場景描述堪用待升級</b>；<b>雲端專家評估完待做</b>；<b>移動待車體採購</b>。硬體升級只在 Benchmark FAIL 後才發生。</div>
@@ -236,13 +237,13 @@ Thank you!</pre>
       <div class="mile"><div class="tag">M9–M14<span class="st s-done">完成</span></div><div class="body"><h3>摸極限＋資源實測</h3><p>確認卡下載/build（非硬體）；實測資源餘裕、確認可扛移動；stable-senseVoice 存檔＋一鍵還原（8/28）。</p></div></div>
       <div class="mile"><div class="tag">M15<span class="st s-bad">誠實結案</span></div><div class="body"><h3>on-device moondream2 結案（框架牆）</h3><p>9 次嘗試：compose/build/DNS 管線 ×8 → 最強打法(不 build 直跑 base)第一次摸到模型載入 → <b>撞真牆</b>(trust_remote_code 離線＋無 pip)。非硬體/模型不相容。生產全程零損傷。未來走 <code>ollama pull moondream</code> 或雲端 Gemini（8/28）。</p></div></div>
       <div class="mile"><div class="tag">M19–M27b<span class="st s-done">完成</span></div><div class="body"><h3>找回並救活本地主腦＋真恢復點</h3><p>雲端評估＝GO WITH CONDITIONS；全系統盤點；<b>抓出 qwen/llava 竟遺失</b>（health 綠燈是假象）→re-pull＋改掛載 /data <b>持久化（重啟不丟）</b>、實測 qwen 真推理＋brain /ask ✓；重設「含模型 re-pull」的真恢復點（8/29）。</p></div></div>
-      <div class="mile active"><div class="tag">M28→<span class="st s-wip">進行中</span></div><div class="body"><h3>壓測 CURRENT_PEAK ＋ 完整備份　◀ 現在</h3><p>M28b 直呼 ollama 真壓測＝峰值 12.1G/15.7G（77%）；完整備份到 _V1_Backup_20260829。下一步：雲端 gateway（B 案 OpenRouter）／ROSOrin 發信。</p></div></div>
+      <div class="mile active"><div class="tag">M28–M37<span class="st s-done">完成</span></div><div class="body"><h3>壓測 CURRENT_PEAK ＋ 完整備份　◀ 現在</h3><p>M28b 直呼 ollama 真壓測＝峰值 12.1G/15.7G（77%）；完整備份到 _V1_Backup_20260829。下一步：雲端 gateway（B 案 OpenRouter）／ROSOrin 發信。</p></div></div>
       <div class="mile"><div class="tag">M4<span class="st s-todo">下一大步</span></div><div class="body"><h3>自主移動 ＋ ROS（資源已確認夠）</h3><p>採購 PASS 後接底盤/光達/手臂、Nav2/SLAM，複用 JN1_ROS2 橋接。</p></div></div>
     </div>
   </section>
 
   <footer class="foot">
-    <span>最後更新　2026-08-29（M28 壓測＋備份）</span>
+    <span>最後更新　2026-09-02（M38 Gemini 雲端顧問上線）</span>
     <span>資料以 GitHub 實測為準</span>
   </footer>
 
