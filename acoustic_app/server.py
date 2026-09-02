@@ -68,6 +68,9 @@ AUTH_PASS = os.environ.get("ACOUSTIC_PASS", "")
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # 放行 WebSocket 路徑（JS 無法帶 Authorization header，瀏覽器安全政策限制）
+        if request.url.path.startswith('/ws'):
+            return await call_next(request)
         if AUTH_USER and AUTH_PASS:
             auth_header = request.headers.get("Authorization", "")
             is_authenticated = False
