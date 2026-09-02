@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>聲源方向 + 相機疊加（演示）</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a0f14; color: #e6f0f1; padding: 16px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { margin-bottom: 8px; font-size: 20px; }
+    .subtitle { color: #8aa1a6; font-size: 13px; margin-bottom: 16px; }
+
+    .panel {
+      background: #101a1d; border: 1px solid #1e2d31; border-radius: 12px;
+      padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .camera-container {
+      position: relative; width: 100%; max-width: 640px;
+      background: #000; border-radius: 8px; overflow: hidden;
+      aspect-ratio: 640 / 480;
+    }
+    .camera-container img {
+      width: 100%; height: 100%; display: block;
+    }
+    .camera-container canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    }
+
+    .info-box {
+      background: #0c1517; border: 1px solid #1e2d31; border-radius: 8px;
+      padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+      line-height: 1.6; margin-top: 12px;
+    }
+    .info-box div { display: flex; gap: 12px; }
+    .info-box .label { color: #8aa1a6; min-width: 100px; }
+    .info-box .value { color: #2dd4bf; font-weight: 600; }
+
+    .status { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+    .status-item { display: flex; align-items: center; gap: 6px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.ok { background: #4ade80; }
+    .status-dot.warn { background: #fbbf24; }
+    .status-dot.err { background: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎥 聲源方向 + 相機疊加（演示）</h1>
+    <p class="subtitle">實驗性集成 · 前後未消歧會顯示 "或在後方" · 未校準 ±</p>
+
+    <div class="panel">
+      <div class="camera-container">
+        <img id="camera" src="/camera.mjpg" alt="Camera stream">
+        <canvas id="overlay"></canvas>
+      </div>
+
+      <div class="info-box">
+        <div><span class="label">方位角:</span> <span class="value" id="az">—°</span></div>
+        <div><span class="label">置信度:</span> <span class="value" id="conf">—</span></div>
+        <div><span class="label">分類:</span> <span class="value" id="cls">—</span></div>
+        <div><span class="label">前後:</span> <span class="value" id="amb">—</span></div>
+        <div><span class="label">音量:</span> <span class="value" id="lvl">— dB</span></div>
+      </div>
+
+      <div class="status">
+        <div class="status-item">
+          <div class="status-dot ok" id="dot-ws"></div>
+          <span>WebSocket</span>
+        </div>
+        <div class="status-item">
+          <div class="status-dot" id="dot-cam"></div>
+          <span>Camera</span>
+        </div>
+      </div>
+    </div>
+
+    <p style="color: #8aa1a6; font-size: 12px; margin-top: 20px;">
+      📍 藍色帶：聲源在相機畫面內<br>
+      🔴 紅色帶：低信心度（可信度低）<br>
+      ⚠️ 若 ambiguous=true：聲源在前或後（需人工確認）<br>
+      🌐 區網限定（0.0.0.0:8011）
+    </p>
+  </div>
+
+  <script>
+    const CAMERA_HFOV = 70; // 度數
+    const CAMERA_W = 640, CAMERA_H = 480;
+    const overlay = document.getElementById('overlay');
+    const ctx = overlay.getContext('2d');
+    overlay.width = CAMERA_W;
+    overlay.height = CAMERA_H;
+
+    let currentFrame = null;
+
+    // 從 /api/status 讀 camera_hfov_deg
+    fetch('/api/status').then(r => r.json()).then(s => {
+      document.getElementById('dot-cam').className = 'status-dot ' + (s.camera_ready ? 'ok' : 'warn');
+    });
+
+    // WebSocket 連線
+    const ws = new WebSocket('ws://127.0.0.1:8011/ws/live');
+    ws.onopen = () => console.log('連線成功');
+    ws.onerror = () => {
+      document.getElementById('dot-ws').className = 'status-dot err';
+      console.error('WebSocket 錯誤');
+    };
+
+    ws.onmessage = (e) => {
+      const frame = JSON.parse(e.data);
+      currentFrame = frame;
+
+      // 更新數值
+      document.getElementById('az').textContent = frame.azimuth + '°';
+      document.getElementById('conf').textContent = frame.confidence.toFixed(2);
+      document.getElementById('cls').textContent = ['語音', '馬達', '風噪', '敲擊', '機械', '靜音'][frame.class] || '？';
+      document.getElementById('amb').textContent = frame.ambiguous ? '未消歧 ⚠️' : '消歧 ✓';
+      document.getElementById('lvl').textContent = frame.level.toFixed(1) + ' dB';
+
+      // 繪製方向帶
+      drawDOA(frame);
+    };
+
+    function drawDOA(frame) {
+      ctx.clearRect(0, 0, CAMERA_W, CAMERA_H);
+
+      const az = frame.azimuth;
+      const conf = frame.confidence;
+      const ambig = frame.ambiguous;
+
+      // 正規化到 -180..180
+      let az_norm = az > 180 ? az - 360 : az;
+
+      // 視角內？
+      if (Math.abs(az_norm) <= CAMERA_HFOV / 2) {
+        // 在畫面內：繪製垂直帶
+        const x = CAMERA_W * (0.5 + az_norm / CAMERA_HFOV);
+        const width = 8 + (1 - conf) * 24; // 寬度隨信心度變
+
+        // 顏色：綠(高) -> 黃(中) -> 紅(低)
+        let color;
+        if (conf >= 0.7) color = 'rgba(74, 222, 128, 0.6)'; // 綠
+        else if (conf >= 0.4) color = 'rgba(251, 191, 36, 0.6)'; // 黃
+        else color = 'rgba(248, 113, 113, 0.6)'; // 紅
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x - width / 2, 0, width, CAMERA_H);
+
+        // 上方標籤
+        ctx.fillStyle = '#e6f0f1';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${frame.class ? ['語', '馬', '風', '敲', '械', '靜'][frame.class] : '?'} ${(conf*100|0)}%`, x, 20);
+
+        if (ambig) {
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#fbbf24';
+          ctx.fillText('或在後方', x, 40);
+        }
+      } else if (Math.abs(az_norm) < 90) {
+        // 畫面外左/右
+        const side = az_norm < 0 ? 'LEFT' : 'RIGHT';
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`➡️ ${side}`, CAMERA_W / 2, CAMERA_H / 2);
+      } else {
+        // 後方
+        ctx.fillStyle = '#f87171';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🔙 後方', CAMERA_W / 2, CAMERA_H / 2);
+      }
+    }
+  </script>
+</body>
+</html>
