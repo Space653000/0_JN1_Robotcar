@@ -95,23 +95,6 @@
 </style>
 
 <div class="wrap">
-  <!-- 相機 + 聲源方向面板 P0 -->
-  <div class="panel" style="margin-bottom:14px">
-    <div class="head"><h2>📹 相機 + 聲源方向（實驗） ⚠️ 未校準</h2></div>
-    <div class="body">
-      <div class="scene cam" style="position:relative">
-        <img src="/camera.mjpg" alt="Camera stream" style="opacity:0.9">
-        <canvas id="doa-overlay" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-        <div class="nocam">Offline</div>
-      </div>
-      <div class="readout" style="margin-top:10px">
-        <div class="metric"><div class="k">方位</div><div class="v" id="cam-az">—°</div></div>
-        <div class="metric"><div class="k">信心</div><div class="v" id="cam-conf">—</div></div>
-        <div class="metric"><div class="k">前後</div><div class="v" id="cam-amb">—</div></div>
-      </div>
-    </div>
-  </div>
-
   <header>
     <div class="brand">
       <h1>JN1 聲學定位</h1>
@@ -390,42 +373,6 @@ function startDemo(reason){
 }
 
 fitScene();fitCam();connectLive();
-
-// 相機面板 JavaScript (P0 實驗)
-(()=>{
-  const overlay=document.getElementById('doa-overlay');
-  if(!overlay)return;
-  const ctx=overlay.getContext('2d');
-  const CAM_HFOV=70,CAM_W=640,CAM_H=480;
-  overlay.width=CAM_W;overlay.height=CAM_H;
-
-  // 監聽 WebSocket frame
-  const orig_render=window.render;
-  window.render=(frame)=>{
-    if(orig_render)orig_render(frame);
-    if(!frame)return;
-
-    document.getElementById('cam-az').textContent=frame.azimuth+'°';
-    document.getElementById('cam-conf').textContent=(frame.confidence*100|0)+'%';
-    document.getElementById('cam-amb').textContent=frame.ambiguous?'未消歧':'消歧';
-
-    // 繪製方向帶
-    ctx.clearRect(0,0,CAM_W,CAM_H);
-    const az=frame.azimuth;
-    let az_norm=az>180?az-360:az;
-
-    if(Math.abs(az_norm)<=CAM_HFOV/2){
-      const x=CAM_W*(0.5+az_norm/CAM_HFOV);
-      const w=8+(1-frame.confidence)*24;
-      let c='rgba(74,222,128,0.6)';
-      if(frame.confidence<0.7)c=frame.confidence<0.4?'rgba(248,113,113,0.6)':'rgba(251,191,36,0.6)';
-      ctx.fillStyle=c;ctx.fillRect(x-w/2,0,w,CAM_H);
-      ctx.fillStyle='#e6f0f1';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
-      ctx.fillText(['語','馬','風','敲','械','靜'][frame.class||0]+' '+((frame.confidence*100|0)+'%'),x,20);
-      if(frame.ambiguous){ctx.font='11px sans-serif';ctx.fillStyle='#fbbf24';ctx.fillText('或後',x,35);}
-    }
-  };
-})();
 </script>
 
 <!-- inject start: camera frame polling -->
