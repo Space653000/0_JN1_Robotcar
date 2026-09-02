@@ -64,11 +64,24 @@ doa_estimator = None
 spectrum_analyzer = None
 audio_ready = False
 
-# 校准缓冲（最近 ~2 秒的原始方位，用于校准）
+# 校準緩衝（最近 ~2 秒的原始方位，用於校準）
 import collections
-azimuth_buffer = collections.deque(maxlen=int(2 * TARGET_FPS))  # 40 帧 @ 20fps
+azimuth_buffer = collections.deque(maxlen=int(2 * TARGET_FPS))  # 40 幀 @ 20fps
 
-# 全局摄像头对象
+# 效能統計緩衝（最近 ~100 幀的計時數據）
+class TimingFrame:
+    def __init__(self, ts, audio_read, gcc, spectrum, frame_build, ws_send):
+        self.timestamp = ts
+        self.audio_read_ms = audio_read
+        self.gcc_ms = gcc
+        self.spectrum_ms = spectrum
+        self.frame_build_ms = frame_build
+        self.ws_send_ms = ws_send
+
+timing_buffer = collections.deque(maxlen=100)  # 最近 100 幀
+timing_lock = asyncio.Lock()
+
+# 全局攝像頭對象
 camera = None
 camera_ready = False
 camera_lock = asyncio.Lock()
@@ -190,6 +203,54 @@ async def get_config():
         "camera_hfov_deg": CAMERA_HFOV_DEG,
         "camera_width": CAMERA_WIDTH,
         "camera_height": CAMERA_HEIGHT
+    }
+
+
+@app.get("/api/stats")
+async def get_stats():
+    """返回效能統計（最近 ~100 幀的計時中位數）"""
+    if not timing_buffer:
+        return {
+            "fps": 0,
+            "audio_read_ms": 0,
+            "gcc_ms": 0,
+            "spectrum_ms": 0,
+            "frame_build_ms": 0,
+            "ws_send_ms": 0,
+            "frames": 0
+        }
+
+    frames_list = list(timing_buffer)
+    n = len(frames_list)
+
+    # 計算 FPS（最新幀的時間戳與最舊幀的時間戳之差）
+    if n > 1:
+        time_diff = frames_list[-1].timestamp - frames_list[0].timestamp
+        fps = (n - 1) / time_diff if time_diff > 0 else 0
+    else:
+        fps = 0
+
+    # 計算各階段的中位數
+    def median(values):
+        if not values:
+            return 0
+        sorted_vals = sorted(values)
+        return sorted_vals[len(sorted_vals)//2]
+
+    audio_read_ms = median([f.audio_read_ms for f in frames_list])
+    gcc_ms = median([f.gcc_ms for f in frames_list])
+    spectrum_ms = median([f.spectrum_ms for f in frames_list])
+    frame_build_ms = median([f.frame_build_ms for f in frames_list])
+    ws_send_ms = median([f.ws_send_ms for f in frames_list])
+
+    return {
+        "fps": round(fps, 2),
+        "audio_read_ms": round(audio_read_ms, 1),
+        "gcc_ms": round(gcc_ms, 1),
+        "spectrum_ms": round(spectrum_ms, 1),
+        "frame_build_ms": round(frame_build_ms, 1),
+        "ws_send_ms": round(ws_send_ms, 1),
+        "frames": n
     }
 
 
@@ -382,7 +443,21 @@ async def frame_generator():
 
                 t_send = time.perf_counter()
                 yield frame
-                timings['ws_send_ms'].append((time.perf_counter() - t_send) * 1000)
+                ws_send_ms = (time.perf_counter() - t_send) * 1000
+                timings['ws_send_ms'].append(ws_send_ms)
+
+                # 保存到效能統計緩衝
+                try:
+                    timing_buffer.append(TimingFrame(
+                        ts=time.time(),
+                        audio_read=audio_read_ms,
+                        gcc=timings['gcc_ms'][-1] if timings['gcc_ms'] else 0,
+                        spectrum=timings['spectrum_ms'][-1] if timings['spectrum_ms'] else 0,
+                        frame_build=frame_build_ms,
+                        ws_send=ws_send_ms
+                    ))
+                except:
+                    pass
 
                 # 每 ~5 秒印出統計
                 if frame_count % int(TARGET_FPS * 5) == 0:
