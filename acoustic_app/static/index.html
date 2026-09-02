@@ -349,7 +349,7 @@ function connectLive(){
   const params=new URLSearchParams(location.search);
   if(params.get('hfov'))state.hfov=+params.get('hfov');
   if(params.get('cam')){state.camUrl=params.get('cam');camImg.src=state.camUrl;}
-  const url=params.get('ws')||(location.protocol==='https:'&&!location.host?null:`ws://${location.host}/ws/live`);
+  const url=params.get('ws')||`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws/live`;
   if(!url){startDemo('無 WebSocket（示範模式）');return;}
   let ws;try{ws=new WebSocket(url);}catch(e){startDemo('連線失敗（示範模式）');return;}
   const to=setTimeout(()=>{try{ws.close()}catch(e){};if(state.mode!=='live')startDemo('連線逾時（示範模式）');},2500);
