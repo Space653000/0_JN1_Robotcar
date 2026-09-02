@@ -393,13 +393,13 @@ async def frame_generator():
         return
 
     print("[STREAM] 開始音訊流...")
-    block_interval = 1.0 / (AUDIO_SR / AUDIO_BLOCKSIZE / TARGET_FPS)
 
     # 計時統計
     timings = {'audio_read_ms': [], 'gcc_ms': [], 'spectrum_ms': [], 'frame_build_ms': [], 'ws_send_ms': []}
 
     try:
         while True:
+            frame_start = time.perf_counter()
             t_loop_start = time.perf_counter()
 
             # 讀一個 block
@@ -468,8 +468,11 @@ async def frame_generator():
                             median = vals[len(vals)//2]
                             print(f"  {key}: {median:.1f}ms (median)")
 
-            # 限制幀率
-            await asyncio.sleep(block_interval * 0.9)
+            # 節流：每幀約 1/TARGET_FPS 秒（50ms @ 20fps）
+            dt = (time.perf_counter() - frame_start) * 1000  # 毫秒
+            sleep_time = max(0.0, (1.0 / TARGET_FPS) - (dt / 1000))
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
 
     except Exception as e:
         print(f"[ERROR] 流處理異常: {e}")
