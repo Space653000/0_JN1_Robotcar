@@ -1,18 +1,27 @@
 """
 XVF3800 实时声源定位 WebSocket 后端 (FastAPI)
 
-- GET /: 返回 static/index.html
+- GET /: 返回 shell.html (統一首頁)
+- GET /acoustic: 返回 index.html (聲學即時)
+- GET /dashboard: 返回 jn1_dashboard.html (儀表板)
 - WS /ws/live: 实时发送 FRAME_CONTRACT JSON 帧
 - 绑定 0.0.0.0:8011
+- HTTP Basic Auth (ACOUSTIC_USER, ACOUSTIC_PASS from .env)
 """
 
 import asyncio
 import json
 import time
+import base64
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 import numpy as np
 import cv2
 from dsp import AudioCapture, DOAEstimator, SpectrumAnalyzer, compute_frame
@@ -50,6 +59,33 @@ if OFFSET_FILE.exists():
         AZIMUTH_OFFSET = 0.0
 
 app = FastAPI(title="Jetson Acoustic DoA + Camera")
+
+# ============================================================================
+# HTTP Basic Auth Middleware
+# ============================================================================
+AUTH_USER = os.environ.get("ACOUSTIC_USER", "")
+AUTH_PASS = os.environ.get("ACOUSTIC_PASS", "")
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if AUTH_USER and AUTH_PASS:
+            auth_header = request.headers.get("Authorization", "")
+            is_authenticated = False
+            if auth_header.startswith("Basic "):
+                try:
+                    credentials = base64.b64decode(auth_header[6:]).decode()
+                    username, _, password = credentials.partition(":")
+                    is_authenticated = (username == AUTH_USER and password == AUTH_PASS)
+                except Exception:
+                    is_authenticated = False
+            if not is_authenticated:
+                return Response(
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="JN1 Acoustic"'}
+                )
+        return await call_next(request)
+
+app.add_middleware(BasicAuthMiddleware)
 
 # 静态文件
 static_dir = Path(__file__).parent / "static"
@@ -174,13 +210,33 @@ async def init_audio():
 # HTTP 路由
 # ============================================================================
 @app.get("/")
-async def get_index():
-    """返回前端页面"""
-    index_path = static_dir / "index.html"
-    if index_path.exists():
-        return FileResponse(index_path)
+async def get_shell():
+    """返回主外殼（兩頁籤）"""
+    shell_path = static_dir / "shell.html"
+    if shell_path.exists():
+        return FileResponse(shell_path, media_type="text/html")
+    else:
+        return {"error": "shell.html 不存在", "static_dir": str(static_dir)}
+
+
+@app.get("/acoustic")
+async def get_acoustic():
+    """返回聲學即時頁面"""
+    acoustic_path = static_dir / "index.html"
+    if acoustic_path.exists():
+        return FileResponse(acoustic_path, media_type="text/html")
     else:
         return {"error": "index.html 不存在", "static_dir": str(static_dir)}
+
+
+@app.get("/dashboard")
+async def get_dashboard():
+    """返回儀表板頁面"""
+    dashboard_path = Path("/home/jetson/0_JN1_Robotcar/jn1_dashboard.html")
+    if dashboard_path.exists():
+        return FileResponse(dashboard_path, media_type="text/html")
+    else:
+        return {"error": "jn1_dashboard.html 不存在", "path": str(dashboard_path)}
 
 
 @app.get("/api/status")
