@@ -150,7 +150,7 @@
         </div></div>
       </div>
       <div class="panel">
-        <div class="head"><h2>頻譜 · Spectrum</h2><span class="tag">0–8 kHz</span></div>
+        <div class="head"><h2>頻譜 · Spectrum</h2><span class="tag">20 Hz–8 kHz · log</span></div>
         <div class="body"><canvas id="spec" class="plot" height="140"></canvas></div>
       </div>
       <div class="panel">
@@ -302,13 +302,20 @@ function drawCamera(az,conf,amb,cls){
 
 /* ---- spectrum ---- */
 function drawSpectrum(mags){
-  const c=$('#spec'),r=c.getBoundingClientRect(),W=r.width,H=140,ctx=specCtx;ctx.clearRect(0,0,W,H);
+  const c=document.querySelector('#spec'),r=c.getBoundingClientRect(),W=r.width,H=140,ctx=specCtx;ctx.clearRect(0,0,W,H);
+  const FMIN=20,FMAX=8000,lmin=Math.log10(FMIN),lmax=Math.log10(FMAX);
+  const xf=f=>(Math.log10(Math.max(f,FMIN))-lmin)/(lmax-lmin)*W;
+  const N=mags.length,binHz=FMAX/(N-1);
   ctx.strokeStyle=css('--grid');ctx.fillStyle=css('--ink-soft');ctx.font='10px '+css('--mono');ctx.textAlign='center';ctx.lineWidth=1;
-  [0,2000,4000,6000,8000].forEach(f=>{const x=f/8000*W;ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H-14);ctx.stroke();ctx.globalAlpha=1;ctx.fillText((f/1000)+'k',x,H-2);});
-  const bx0=state.flow/8000*W,bx1=state.fhigh/8000*W;ctx.fillStyle=css('--accent-soft');ctx.fillRect(bx0,0,bx1-bx0,H-14);
-  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,css('--trace')+'aa');g.addColorStop(1,css('--trace')+'12');
-  ctx.beginPath();for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W,y=(H-14)-mags[i]*(H-20);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.lineTo(W,H-14);ctx.lineTo(0,H-14);ctx.closePath();ctx.fillStyle=g;ctx.fill();
-  ctx.strokeStyle=css('--trace');ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<mags.length;i++){const x=i/(mags.length-1)*W,y=(H-14)-mags[i]*(H-20);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+  [20,50,100,200,500,1000,2000,5000,8000].forEach(function(f){var x=xf(f);ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H-14);ctx.stroke();ctx.globalAlpha=1;ctx.fillText(f>=1000?(f/1000)+'k':f,x,H-2);});
+  var bx0=xf(state.flow),bx1=xf(state.fhigh);ctx.fillStyle=css('--accent-soft');ctx.fillRect(bx0,0,bx1-bx0,H-14);
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,css('--trace')+'aa');g.addColorStop(1,css('--trace')+'12');
+  ctx.beginPath();var st=false;
+  for(var i=0;i<N;i++){var f=i*binHz;if(f<FMIN)continue;var x=xf(f),y=(H-14)-mags[i]*(H-20);if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);}
+  ctx.lineTo(W,H-14);ctx.lineTo(xf(FMIN),H-14);ctx.closePath();ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle=css('--trace');ctx.lineWidth=1.5;ctx.beginPath();st=false;
+  for(var i=0;i<N;i++){var f=i*binHz;if(f<FMIN)continue;var x=xf(f),y=(H-14)-mags[i]*(H-20);if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);}
+  ctx.stroke();
 }
 
 /* ---- spectrogram ---- */
