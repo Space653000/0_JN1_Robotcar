@@ -85,6 +85,15 @@ class DOAEstimator:
         self.onboard_doa = None
         self.onboard_confidence = 0.0
 
+        # 启动时尝试一次板载 DoA，避免每帧调用 subprocess（性能瓶颈）
+        self.onboard_doa_available = False
+        onboard_angle, onboard_conf = self.try_read_onboard_doa()
+        if onboard_angle is not None:
+            self.onboard_doa_available = True
+            print(f"[DSP] 板載 DoA 可用：{onboard_angle:.1f}°")
+        else:
+            print("[DSP] 板載 DoA 不可用，使用純 GCC-PHAT")
+
     def try_read_onboard_doa(self):
         """尝试从 xvf_host 读板载 DoA
 
@@ -159,8 +168,10 @@ class DOAEstimator:
         info = {'method': 'none', 'gcc_delay': None, 'gcc_strength': None, 'onboard': None}
         ambiguous = False  # 是否有前后模糊
 
-        # 1. 尝试读板载 DoA
-        onboard_angle, onboard_conf = self.try_read_onboard_doa()
+        # 1. 尝试读板载 DoA（仅在初始化时尝试一次，避免 subprocess 性能开销）
+        onboard_angle, onboard_conf = None, 0.0
+        if self.onboard_doa_available:
+            onboard_angle, onboard_conf = self.onboard_doa, self.onboard_confidence
         info['onboard'] = (onboard_angle, onboard_conf) if onboard_angle is not None else None
 
         # 2. 用 GCC-PHAT 做辅助估计
@@ -288,6 +299,10 @@ class SimpleClassifier:
             return 2, 0.3  # 風噪（高频）
 
 
+# 频谱时间平均状态
+_spectrum_avg = None  # 上一帧的平均频谱
+
+
 def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=None, timestamp_ns=None):
     """计算一个完整的 FRAME_CONTRACT 帧
 
@@ -313,10 +328,27 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
     rms = np.sqrt(np.mean(ch0**2))
     level_db = 20 * np.log10(rms + 1e-10)
 
-    # 2. 频谱
+    # 2. 频谱（含高通、边缘清理、时间平均）
+    global _spectrum_avg
     if spectrum_analyzer is None:
         spectrum_analyzer = SpectrumAnalyzer(sr)
-    spectrum = spectrum_analyzer.compute_spectrum(ch0).tolist()
+    spectrum = spectrum_analyzer.compute_spectrum(ch0)
+
+    # B. 高通滤波：80Hz 以下设 0
+    freq_max = spectrum_analyzer.freq_max  # 8000 Hz
+    bin_hz = freq_max / (len(spectrum) - 1)
+    highpass_idx = max(0, int(80 / bin_hz))  # 80Hz 对应的 bin 索引
+    spectrum[:highpass_idx] = 0
+
+    # C. 边缘清理：最后 2 个 bin 设 0（去右边缘假翹起）
+    spectrum[-2:] = 0
+
+    # D. 时间平均：avg = 0.6*avg + 0.4*new
+    if _spectrum_avg is None:
+        _spectrum_avg = spectrum.copy()
+    else:
+        _spectrum_avg = 0.6 * _spectrum_avg + 0.4 * spectrum
+    spectrum = _spectrum_avg.tolist()
 
     # 3. 方位角 + 置信度 + 消歧标志
     if doa_estimator is None:
