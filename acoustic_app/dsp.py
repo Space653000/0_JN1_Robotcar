@@ -10,7 +10,7 @@ XVF3800 音频 DSP 处理模块
 import numpy as np
 import sounddevice as sd
 from scipy import signal
-from scipy.fft import fft, fftfreq
+from scipy.fft import fft, fftfreq, rfft, irfft
 import time
 import threading
 from queue import Queue
@@ -120,26 +120,38 @@ class DOAEstimator:
         return None, 0.0
 
     def gcc_phat(self, ch0, ch1, max_delay=None):
-        """GCC-PHAT 方法估计两个通道的时间差
+        """GCC-PHAT FFT-based method for estimating time difference of arrival
 
+        使用频域交叉相关计算（O(n log n) 而非 O(n²) 时域）
         返回: (delay_samples, peak_strength_0_to_1)
         """
         if max_delay is None:
             max_delay = int(self.sr * self.mic_distance / self.sound_speed)
 
-        # 计算交叉相关
-        cc = signal.correlate(ch0, ch1, mode='full')
-        lags = signal.correlation_lags(len(ch0), len(ch1), mode='full')
+        # FFT-based GCC-PHAT: X0 * conj(X1) / |X0*conj(X1)|
+        X0 = rfft(ch0)
+        X1 = rfft(ch1)
 
-        # 限制在合理范围内
-        valid = np.abs(lags) <= max_delay
-        cc_valid = cc[valid]
-        lags_valid = lags[valid]
+        # 交叉功率谱
+        R = X0 * np.conj(X1)
 
-        # 找峰值
-        peak_idx = np.argmax(np.abs(cc_valid))
-        delay = lags_valid[peak_idx]
-        peak_strength = np.abs(cc_valid[peak_idx]) / (np.max(np.abs(cc_valid)) + 1e-10)
+        # PHAT 加权（相位信息，幅度归一）
+        R_phat = R / (np.abs(R) + 1e-8)
+
+        # 逆 FFT 得到时域相关
+        cc = irfft(R_phat, n=len(ch0)*2)[:len(ch0)*2]
+
+        # 寻找峰值位置（使用 fftshift 处理环绕）
+        cc_shifted = np.fft.fftshift(cc)
+        peak_idx_shifted = np.argmax(np.abs(cc_shifted))
+        peak_idx = peak_idx_shifted - len(cc) // 2
+
+        # 限制在合理延迟范围
+        if abs(peak_idx) > max_delay:
+            peak_idx = max_delay if peak_idx > 0 else -max_delay
+
+        delay = peak_idx
+        peak_strength = np.abs(cc[peak_idx]) / (np.max(np.abs(cc)) + 1e-10)
 
         return delay, peak_strength
 
@@ -314,17 +326,19 @@ class SimpleClassifier:
 
 
 def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=None, timestamp_ns=None):
-    """计算一个完整的 FRAME_CONTRACT 帧
+    """計算一個完整的 FRAME_CONTRACT 幀
 
-    参数:
-      audio_2ch: shape (N, 2) 浮点音频
-      sr: 采样率
-      doa_estimator: DOAEstimator 实例
-      spectrum_analyzer: SpectrumAnalyzer 实例
-      timestamp_ns: 纳秒时间戳（若为 None 则自动生成）
+    參數:
+      audio_2ch: shape (N, 2) 浮點音訊
+      sr: 採樣率
+      doa_estimator: DOAEstimator 實例
+      spectrum_analyzer: SpectrumAnalyzer 實例
+      timestamp_ns: 納秒時間戳（若為 None 則自動生成）
 
-    返回: dict 符合 FRAME_CONTRACT
+    傳回: dict 符合 FRAME_CONTRACT
     """
+    t_start = time.perf_counter()
+
     if timestamp_ns is None:
         timestamp_ns = int(time.time_ns())
 
@@ -334,24 +348,28 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
     ch0 = audio_2ch[:, 0]
     ch1 = audio_2ch[:, 1]
 
-    # 1. 音量 (相对 dB)
+    # 1. 音量 (相對 dB)
     rms = np.sqrt(np.mean(ch0**2))
     level_db = 20 * np.log10(rms + 1e-10)
 
-    # 2. 频谱（高通、边缘清理、时间平均已在 SpectrumAnalyzer 中处理）
+    # 2. 頻譜（高通、邊緣清理、時間平均已在 SpectrumAnalyzer 中處理）
+    t_spectrum_start = time.perf_counter()
     if spectrum_analyzer is None:
         spectrum_analyzer = SpectrumAnalyzer(sr)
     spectrum = spectrum_analyzer.compute_spectrum(ch0).tolist()
+    spectrum_ms = (time.perf_counter() - t_spectrum_start) * 1000
 
-    # 3. 方位角 + 置信度 + 消歧标志
+    # 3. 方位角 + 置信度 + 消歧標誌
+    t_gcc_start = time.perf_counter()
     if doa_estimator is None:
         doa_estimator = DOAEstimator(sr)
     azimuth, confidence, ambiguous, _info = doa_estimator.estimate_doa(ch0, ch1)
+    gcc_ms = (time.perf_counter() - t_gcc_start) * 1000
 
-    # 4. 分类
+    # 4. 分類
     class_idx, _class_conf = SimpleClassifier.classify(ch0, level_db)
 
-    # 5. 组装 FRAME_CONTRACT
+    # 5. 組裝 FRAME_CONTRACT
     frame = {
         't': timestamp_ns,
         'azimuth': int(azimuth),
@@ -359,7 +377,11 @@ def compute_frame(audio_2ch, sr=16000, doa_estimator=None, spectrum_analyzer=Non
         'level': float(level_db),
         'spectrum': spectrum,
         'class': class_idx,
-        'ambiguous': bool(ambiguous)  # true = 前后模糊（只用 GCC-PHAT）
+        'ambiguous': bool(ambiguous),  # true = 前後模糊（只用 GCC-PHAT）
+        '_timing': {
+            'gcc_ms': gcc_ms,
+            'spectrum_ms': spectrum_ms
+        }
     }
 
     return frame

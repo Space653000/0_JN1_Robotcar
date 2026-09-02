@@ -320,30 +320,38 @@ frame_start_time = time.time()
 
 
 async def frame_generator():
-    """音频处理生成器
+    """音訊處理生成器
 
-    持续从音频设备读取，计算 FRAME_CONTRACT，发送给客户端
+    持續從音訊設備讀取，計算 FRAME_CONTRACT，發送給客戶端
     """
     global frame_count, frame_start_time
 
     if not audio_ready:
-        print("[ERROR] 音频未初始化")
+        print("[ERROR] 音訊未初始化")
         yield {"error": "Audio not ready"}
         return
 
-    print("[STREAM] 开始音频流...")
+    print("[STREAM] 開始音訊流...")
     block_interval = 1.0 / (AUDIO_SR / AUDIO_BLOCKSIZE / TARGET_FPS)
+
+    # 計時統計
+    timings = {'audio_read_ms': [], 'gcc_ms': [], 'spectrum_ms': [], 'frame_build_ms': [], 'ws_send_ms': []}
 
     try:
         while True:
-            # 读一个 block
+            t_loop_start = time.perf_counter()
+
+            # 讀一個 block
+            t_audio_start = time.perf_counter()
             audio_2ch = audio_capture.read_block()
             if audio_2ch is None:
-                print("[ERROR] 读音频失败")
+                print("[ERROR] 讀音訊失敗")
                 yield {"error": "Audio read failed"}
                 break
+            audio_read_ms = (time.perf_counter() - t_audio_start) * 1000
 
-            # 计算帧
+            # 計算幀
+            t_frame_start = time.perf_counter()
             frame = compute_frame(
                 audio_2ch,
                 sr=AUDIO_SR,
@@ -351,29 +359,59 @@ async def frame_generator():
                 spectrum_analyzer=spectrum_analyzer,
                 timestamp_ns=int(time.time_ns())
             )
+            frame_build_ms = (time.perf_counter() - t_frame_start) * 1000
 
             if frame:
-                # 记录原始方位到缓冲（用于校准）
+                # 提取計時數據
+                if '_timing' in frame:
+                    timings['gcc_ms'].append(frame['_timing']['gcc_ms'])
+                    timings['spectrum_ms'].append(frame['_timing']['spectrum_ms'])
+                    del frame['_timing']
+
+                timings['audio_read_ms'].append(audio_read_ms)
+                timings['frame_build_ms'].append(frame_build_ms)
+
+                # 記錄原始方位到緩衝（用於校準）
                 raw_azimuth = frame['azimuth']
                 azimuth_buffer.append(raw_azimuth)
 
-                # 应用 offset：azimuth = (raw - AZIMUTH_OFFSET + 360) % 360
+                # 應用 offset：azimuth = (raw - AZIMUTH_OFFSET + 360) % 360
                 frame['azimuth'] = int((raw_azimuth - AZIMUTH_OFFSET + 360) % 360)
 
                 frame_count += 1
-                yield frame
 
-            # 限制帧率
-            await asyncio.sleep(block_interval * 0.9)  # 略提前以保证帧率
+                t_send = time.perf_counter()
+                yield frame
+                timings['ws_send_ms'].append((time.perf_counter() - t_send) * 1000)
+
+                # 每 ~5 秒印出統計
+                if frame_count % int(TARGET_FPS * 5) == 0:
+                    print(f"\n[STATS @ frame {frame_count}]")
+                    for key in timings:
+                        if timings[key]:
+                            vals = sorted(timings[key])
+                            median = vals[len(vals)//2]
+                            print(f"  {key}: {median:.1f}ms (median)")
+
+            # 限制幀率
+            await asyncio.sleep(block_interval * 0.9)
 
     except Exception as e:
-        print(f"[ERROR] 流处理异常: {e}")
+        print(f"[ERROR] 流處理異常: {e}")
         yield {"error": str(e)}
     finally:
-        # 计算实际 fps
+        # 計算實際 fps
         elapsed = time.time() - frame_start_time
         actual_fps = frame_count / elapsed if elapsed > 0 else 0
-        print(f"[STREAM] 结束，实际 FPS: {actual_fps:.1f} ({frame_count} 帧 in {elapsed:.1f}s)")
+        print(f"\n[STREAM] 結束，實際 FPS: {actual_fps:.1f} ({frame_count} 幀 in {elapsed:.1f}s)")
+
+        # 最終統計
+        print("[FINAL STATS]")
+        for key in timings:
+            if timings[key]:
+                vals = sorted(timings[key])
+                median = vals[len(vals)//2]
+                print(f"  {key}: {median:.1f}ms (median)")
 
 
 @app.websocket("/ws/live")
