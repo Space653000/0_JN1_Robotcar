@@ -13,6 +13,7 @@ import asyncio
 import json
 import time
 import base64
+import secrets
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -71,21 +72,30 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         # 放行 WebSocket 路徑（JS 無法帶 Authorization header，瀏覽器安全政策限制）
         if request.url.path.startswith('/ws'):
             return await call_next(request)
-        if AUTH_USER and AUTH_PASS:
-            auth_header = request.headers.get("Authorization", "")
-            is_authenticated = False
-            if auth_header.startswith("Basic "):
-                try:
-                    credentials = base64.b64decode(auth_header[6:]).decode()
-                    username, _, password = credentials.partition(":")
-                    is_authenticated = (username == AUTH_USER and password == AUTH_PASS)
-                except Exception:
-                    is_authenticated = False
-            if not is_authenticated:
-                return Response(
-                    status_code=401,
-                    headers={"WWW-Authenticate": 'Basic realm="JN1 Acoustic"'}
-                )
+        # fail-closed：沒有設定帳密就一律拒絕，絕不「靜默開放」
+        if not (AUTH_USER and AUTH_PASS):
+            return Response(
+                status_code=503,
+                content="伺服器未設定 ACOUSTIC_USER / ACOUSTIC_PASS，已拒絕所有請求。",
+                media_type="text/plain; charset=utf-8",
+            )
+        auth_header = request.headers.get("Authorization", "")
+        is_authenticated = False
+        if auth_header.startswith("Basic "):
+            try:
+                credentials = base64.b64decode(auth_header[6:]).decode()
+                username, _, password = credentials.partition(":")
+                # 用定時安全比較，避免 timing attack
+                ok_u = secrets.compare_digest(username, AUTH_USER)
+                ok_p = secrets.compare_digest(password, AUTH_PASS)
+                is_authenticated = ok_u and ok_p
+            except Exception:
+                is_authenticated = False
+        if not is_authenticated:
+            return Response(
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="JN1 Acoustic"'}
+            )
         return await call_next(request)
 
 app.add_middleware(BasicAuthMiddleware)
@@ -240,6 +250,98 @@ async def get_dashboard():
         return FileResponse(dashboard_path, media_type="text/html")
     else:
         return {"error": "jn1_dashboard.html 不存在", "path": str(dashboard_path)}
+
+
+# ============================================================================
+# 資源遙測：純讀 /proc 與 /sys，不需要安裝 jtop / psutil
+# 在 3.5GB 餘裕下做決策，必須先有量測。
+# ============================================================================
+_cpu_prev = {"total": 0, "idle": 0}
+
+
+def _read_meminfo():
+    try:
+        info = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                info[k.strip()] = int(v.split()[0])  # kB
+        total = info.get("MemTotal", 0) / 1048576.0        # GiB
+        avail = info.get("MemAvailable", 0) / 1048576.0
+        sw_t = info.get("SwapTotal", 0) / 1048576.0
+        sw_f = info.get("SwapFree", 0) / 1048576.0
+        return {"ram_total_gb": round(total, 2),
+                "ram_avail_gb": round(avail, 2),
+                "ram_used_pct": round((1 - avail / total) * 100, 1) if total else None,
+                "swap_used_gb": round(sw_t - sw_f, 2)}
+    except Exception:
+        return {}
+
+
+def _read_cpu():
+    """整體 CPU 使用率（兩次取樣差分）"""
+    try:
+        with open("/proc/stat") as f:
+            parts = f.readline().split()
+        vals = [int(v) for v in parts[1:]]
+        idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
+        total = sum(vals)
+        dt = total - _cpu_prev["total"]
+        di = idle - _cpu_prev["idle"]
+        _cpu_prev["total"], _cpu_prev["idle"] = total, idle
+        if dt <= 0:
+            return None
+        return round((1 - di / dt) * 100, 1)
+    except Exception:
+        return None
+
+
+def _read_temp():
+    """最高的熱區溫度（°C）"""
+    import glob as _g
+    best = None
+    for p in _g.glob("/sys/devices/virtual/thermal/thermal_zone*/temp"):
+        try:
+            v = int(open(p).read().strip())
+            c = v / 1000.0 if v > 1000 else float(v)
+            if best is None or c > best:
+                best = c
+        except Exception:
+            pass
+    return round(best, 1) if best is not None else None
+
+
+def _read_gpu():
+    """Jetson GPU 負載（%）"""
+    import glob as _g
+    for pat in ("/sys/devices/platform/*.gpu/load",
+                "/sys/devices/gpu.0/load",
+                "/sys/class/devfreq/*.gpu/device/load"):
+        for p in _g.glob(pat):
+            try:
+                return round(int(open(p).read().strip()) / 10.0, 1)
+            except Exception:
+                pass
+    return None
+
+
+def _read_disk():
+    try:
+        st = os.statvfs("/")
+        free = st.f_bavail * st.f_frsize / (1024 ** 3)
+        total = st.f_blocks * st.f_frsize / (1024 ** 3)
+        return {"disk_free_gb": round(free, 1), "disk_total_gb": round(total, 1)}
+    except Exception:
+        return {}
+
+
+@app.get("/api/telemetry")
+async def telemetry():
+    """系統資源即時數據（唯讀）"""
+    d = {"cpu_pct": _read_cpu(), "gpu_pct": _read_gpu(), "temp_c": _read_temp()}
+    d.update(_read_meminfo())
+    d.update(_read_disk())
+    return d
 
 
 @app.get("/api/status")
@@ -423,9 +525,19 @@ async def camera_generator():
             break
 
 
+CAMERA_MJPEG_DISABLED = True  # 這條會直接開 /dev/video0，與 vision/perception 搶相機
+
+
 @app.get("/camera.mjpg")
 async def camera_mjpeg():
-    """MJPEG 视频流"""
+    """已停用：本端點會直接開啟 /dev/video0，與 vision / perception 搶同一支 C922，
+    可能導致視覺服務失效。相機畫面請改用 /frame.jpg（代理 perception，零爭用）。"""
+    if CAMERA_MJPEG_DISABLED:
+        return Response(
+            status_code=410,
+            content="此端點已停用，請改用 /frame.jpg（避免與視覺服務搶相機）。",
+            media_type="text/plain; charset=utf-8",
+        )
     return StreamingResponse(
         camera_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame"

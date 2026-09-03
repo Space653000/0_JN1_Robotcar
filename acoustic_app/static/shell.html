@@ -4,9 +4,29 @@
 .tabs{display:flex;gap:6px;background:#101a1d;border-bottom:1px solid #1e2d31;padding:8px 10px}
 .tabs button{font:600 14px system-ui;background:#0c1517;color:#8aa1a6;border:1px solid #1e2d31;border-radius:8px;padding:8px 16px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:#0d9488;color:#04211d;border-color:#0d9488}
+.tele{margin-left:auto;display:flex;gap:10px;font:600 11.5px ui-monospace,monospace;color:#8aa1a6;align-items:center;flex-wrap:wrap}
+.tele b{color:#2dd4bf;font-weight:700}
+.tele .hot{color:#fbbf24}.tele .bad{color:#f87171}
 iframe{width:100%;height:calc(100vh - 53px);border:0;display:none}iframe.on{display:block}</style></head><body>
 <div class="tabs"><button id="t1" aria-selected="true" onclick="sel(1)">系統儀表板</button>
-<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button></div>
+<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button><span class="tele" id="tele" title="系統資源（每 3 秒更新）">量測中…</span></div>
 <iframe id="f1" class="on" src="/dashboard"></iframe><iframe id="f2" src="/acoustic"></iframe>
-<script>function sel(n){t1.setAttribute('aria-selected',n===1);t2.setAttribute('aria-selected',n===2);
+<script>
+async function tele(){
+  try{
+    const r=await fetch('/api/telemetry',{cache:'no-store'});
+    if(!r.ok)return;
+    const d=await r.json();
+    const f=(v,u,warn,bad)=>{if(v===null||v===undefined)return '—';
+      const c=(bad!==undefined&&v>=bad)?'bad':(warn!==undefined&&v>=warn)?'hot':'';
+      return '<b class="'+c+'">'+v+u+'</b>';};
+    const ram=(d.ram_avail_gb!==undefined)?('RAM 剩 '+f(d.ram_avail_gb,'G')):'';
+    const rp=(d.ram_used_pct!==undefined)?(' ('+f(d.ram_used_pct,'%',80,92)+')'):'';
+    document.getElementById('tele').innerHTML=
+      ram+rp+' · CPU '+f(d.cpu_pct,'%',80,95)+' · GPU '+f(d.gpu_pct,'%')+
+      ' · '+f(d.temp_c,'°C',70,80)+' · 磁碟 '+f(d.disk_free_gb,'G');
+  }catch(e){}
+}
+tele();setInterval(tele,3000);
+function sel(n){t1.setAttribute('aria-selected',n===1);t2.setAttribute('aria-selected',n===2);
 f1.className=n===1?'on':'';f2.className=n===2?'on':'';}</script></body></html>

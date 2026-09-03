@@ -86,38 +86,107 @@ class DOAEstimator:
         self.onboard_confidence = 0.0
         self._onboard_dead = False  # 标志：一旦失败，后续不再尝试
 
-    def try_read_onboard_doa(self):
-        """尝试从 xvf_host 读板载 DoA
+    # ------------------------------------------------------------------
+    # 板載 DoA（XVF3800 晶片自己算的方向）
+    #
+    # 重大更正：舊版執行 `xvf_host --query-doa` —— 此參數不存在，必定失敗，
+    # 於是誤判「方向是硬體天花板」。實機已證明：官方 aarch64 binary 可讀，
+    # 指令 AUDIO_MGR_SELECTED_AZIMUTHS，不用 sudo（udev 規則已設）。
+    #
+    # 設計：背景 daemon 執行緒以 POLL_HZ 輪詢，把最新值寫進共享變數；
+    #       WS 幀只讀共享變數，永不在事件迴圈裡開 subprocess（避免阻塞）。
+    #
+    # 實測輸出格式（第 1 個 (X deg) = 處理後方位角，nan = 當下無語音）：
+    #   AUDIO_MGR_SELECTED_AZIMUTHS nan (nan deg) 4.48922 (257.21 deg)
+    #   AUDIO_MGR_SELECTED_AZIMUTHS 2.42139 (138.74 deg) 3.09523 (177.34 deg)
+    # ------------------------------------------------------------------
+    POLL_HZ = 5.0
+    STALE_SEC = 1.5
 
-        返回: (angle_deg, confidence) 或 (None, 0.0) 如果不可得
-        """
-        # 一旦失败，后续不再尝试（避免每帧 subprocess 超时）
-        if self._onboard_dead:
+    def _find_xvf(self):
+        import shutil as _sh
+        cand = [os.environ.get("XVF_HOST", ""),
+                "/home/jetson/xvf_host_pkg/xvf_host",
+                _sh.which("xvf_host") or ""]
+        for p in cand:
+            if p and os.path.isfile(p):
+                return p
+        return None
+
+    def _poll_once(self, exe):
+        """跑一次 xvf_host，回 (angle_deg or None, confidence)。非同步安全（在背景執行緒）。"""
+        import re as _re
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = os.path.dirname(exe) + ":" + env.get("LD_LIBRARY_PATH", "")
+        r = subprocess.run([exe, "AUDIO_MGR_SELECTED_AZIMUTHS"],
+                           capture_output=True, text=True, timeout=1.5, env=env)
+        txt = (r.stdout or "") + (r.stderr or "")
+        if not self._logged_raw:
+            line = ""
+            for ln in txt.splitlines():
+                if "AUDIO_MGR" in ln:
+                    line = ln.strip(); break
+            print("[DSP] xvf_host 首次原始輸出（供人工核對）: %r" % (line or txt.strip()[:160]))
+            self._logged_raw = True
+        m = _re.search(r'AUDIO_MGR_SELECTED_AZIMUTHS(.*)', txt)
+        if not m:
             return None, 0.0
-
-        try:
-            # 尝试运行 xvf_host（若存在）
-            result = subprocess.run(
-                ["xvf_host", "--query-doa"],
-                capture_output=True,
-                text=True,
-                timeout=1.0
-            )
-            if result.returncode == 0:
-                # 假设输出格式为 "angle:XXX confidence:Y.Y"
-                parts = result.stdout.strip().split()
-                for part in parts:
-                    if part.startswith("angle:"):
-                        angle = float(part.split(":")[1])
-                        return angle % 360, 0.8  # 有板载 DoA 时置信度较高
-        except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
-            # xvf_host 不可用 - 标记为死亡，后续不再尝试
-            self._onboard_dead = True
-            print("[DSP] 板載 DoA 已禁用（不再重試）")
-
-        # 失败时返回无效值
-        self._onboard_dead = True
+        vals = _re.findall(r'\(\s*(nan|[-+]?[0-9.]+)\s*deg\s*\)', m.group(1), _re.I)
+        # 第 1 個 = 處理後方位角；nan = 當下沒有語音來源 → 無方向
+        if vals and vals[0].lower() != "nan":
+            try:
+                return float(vals[0]) % 360.0, 0.7
+            except ValueError:
+                return None, 0.0
         return None, 0.0
+
+    def _poll_loop(self):
+        import time as _t
+        backoff = 1.0
+        while not self._stop_poll:
+            exe = self._xvf or self._find_xvf()
+            if not exe:
+                if not self._warned:
+                    print("[DSP] 找不到 xvf_host —— 板載 DoA 無法讀取，改用 GCC-PHAT。"
+                          "（binary 應在 /home/jetson/xvf_host_pkg）")
+                    self._warned = True
+                _t.sleep(min(backoff, 30.0)); backoff = min(backoff * 2, 30.0); continue
+            self._xvf = exe
+            try:
+                a, c = self._poll_once(exe)
+                self.onboard_doa = a
+                self.onboard_confidence = c
+                self._onboard_ts = _t.time()
+                backoff = 1.0
+            except FileNotFoundError:
+                self._xvf = None
+                _t.sleep(min(backoff, 30.0)); backoff = min(backoff * 2, 30.0); continue
+            except Exception:
+                pass  # timeout 等暫時性錯誤：跳過這次，不放棄
+            _t.sleep(1.0 / self.POLL_HZ)
+
+    def _ensure_poller(self):
+        if getattr(self, "_poll_thread", None) is not None:
+            return
+        import threading as _th
+        self._stop_poll = False
+        self._xvf = None
+        self._warned = False
+        self._logged_raw = False
+        self._onboard_ts = 0.0
+        self._poll_thread = _th.Thread(target=self._poll_loop, daemon=True)
+        self._poll_thread.start()
+        print("[DSP] 板載 DoA 背景輪詢已啟動（%.1f Hz，AUDIO_MGR_SELECTED_AZIMUTHS）" % self.POLL_HZ)
+
+    def try_read_onboard_doa(self):
+        """非阻塞：只讀背景執行緒放好的最新值。過期或無語音回 (None, 0.0)。"""
+        import time as _t
+        self._ensure_poller()
+        if self.onboard_doa is None:
+            return None, 0.0
+        if (_t.time() - getattr(self, "_onboard_ts", 0.0)) > self.STALE_SEC:
+            return None, 0.0
+        return self.onboard_doa, self.onboard_confidence
 
     def gcc_phat(self, ch0, ch1, max_delay=None):
         """GCC-PHAT FFT-based method for estimating time difference of arrival

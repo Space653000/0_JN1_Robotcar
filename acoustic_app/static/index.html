@@ -257,6 +257,12 @@ function drawScene(az,conf,amb){
   sctx.strokeStyle=css('--grid');sctx.beginPath();sctx.arc(cx,cy,R,0,7);sctx.stroke();
   sctx.fillStyle=css('--ink-soft');sctx.font='11px '+css('--mono');sctx.textAlign='center';sctx.textBaseline='middle';
   [['0° 前',0],['90° 右',90],['180° 後',180],['270° 左',270]].forEach(([t,d])=>{const[x,y]=toXY(d,R+18);sctx.fillText(t,x,y);});
+  /* ---- FRONT_REF_LINE：正前方參考線（校準後的 0°）---- */
+  {const FC=css('--warn');const[fx,fy]=toXY(0,R);
+   sctx.save();sctx.strokeStyle=FC;sctx.lineWidth=2.5;sctx.globalAlpha=.92;
+   sctx.beginPath();sctx.moveTo(cx,cy);sctx.lineTo(fx,fy);sctx.stroke();
+   sctx.beginPath();sctx.moveTo(fx,fy-2);sctx.lineTo(fx-6,fy+11);sctx.lineTo(fx+6,fy+11);sctx.closePath();
+   sctx.fillStyle=FC;sctx.fill();sctx.restore();}
   const cCol=conf>=.66?css('--good'):conf>=.4?css('--warn'):css('--bad');
   const un=(1-conf)*35+8;
   const g=sctx.createRadialGradient(cx,cy,R*0.1,cx,cy,R);g.addColorStop(0,cCol+'99');g.addColorStop(1,cCol+'0a');
@@ -269,6 +275,21 @@ function drawScene(az,conf,amb){
     sctx.fillStyle=css('--warn');sctx.font='11px '+css('--mono');sctx.textAlign='center';sctx.textBaseline='bottom';
     sctx.fillText('前後未消歧 · 真實方向為實線或虛線之一',cx,H-4);}
   sctx.fillStyle=css('--ink-soft');sctx.beginPath();sctx.arc(cx,cy,3,0,7);sctx.fill();
+  /* ---- 圖例：哪條線是什麼 ---- */
+  {sctx.save();sctx.font='11px '+css('--sans');sctx.textAlign='left';sctx.textBaseline='middle';
+   const ly=13;
+   sctx.strokeStyle=css('--warn');sctx.lineWidth=2.5;
+   sctx.beginPath();sctx.moveTo(8,ly);sctx.lineTo(26,ly);sctx.stroke();
+   sctx.fillStyle=css('--ink-soft');sctx.fillText('正前方',30,ly);
+   const w1=sctx.measureText('正前方').width;
+   sctx.strokeStyle=cCol;
+   sctx.beginPath();sctx.moveTo(40+w1,ly);sctx.lineTo(58+w1,ly);sctx.stroke();
+   sctx.fillStyle=css('--ink-soft');sctx.fillText('聲音來向',62+w1,ly);
+   const w2=sctx.measureText('聲音來向').width;
+   sctx.fillStyle=cCol;sctx.globalAlpha=.28;
+   sctx.fillRect(74+w1+w2,ly-5,18,10);sctx.globalAlpha=1;
+   sctx.fillStyle=css('--ink-soft');sctx.fillText('不確定範圍',96+w1+w2,ly);
+   sctx.restore();}
 }
 
 /* ---- camera overlay ---- */
