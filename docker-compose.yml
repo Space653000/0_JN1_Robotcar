@@ -17,7 +17,8 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_MAX_LOADED_MODELS=1
-      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-10m}   # M3-5a: qwen 常駐 10 分鐘（代理大腦需要頻繁呼叫）
+      - OLLAMA_KEEP_ALIVE=-1                          # M41: 無限期保留模型（預熱常駐）
+      - OLLAMA_NUM_PARALLEL=1                         # M41: 單線程推理（避免資源競爭）
     volumes:
       - ./data/ollama-new:/data
     restart: unless-stopped
