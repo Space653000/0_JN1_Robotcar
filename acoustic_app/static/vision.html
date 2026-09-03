@@ -1,0 +1,146 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>JN1 視覺</title>
+<style>
+:root{--bg:#0a1113;--panel:#101a1d;--panel2:#0c1517;--line:#1e2d31;--ink:#e6f0f1;--ink2:#8aa1a6;
+--accent:#2dd4bf;--accent2:#0d9488;--good:#4ade80;--warn:#fbbf24;--bad:#f87171;--cloud:#60a5fa}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:14px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px}
+.sub{color:var(--ink2);font-size:12px}
+.badge{margin-left:auto;font:600 12px system-ui;padding:4px 10px;border-radius:20px;background:#0c1517;border:1px solid var(--line);color:var(--ink2)}
+.badge.on{color:var(--good);border-color:#1c2f24}
+.grid{display:grid;grid-template-columns:1.35fr 1fr;gap:12px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h2{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:8px}
+.camwrap{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3}
+.camwrap img,.camwrap canvas{position:absolute;inset:0;width:100%;height:100%}
+.camwrap canvas{pointer-events:none}
+.alert{margin-top:10px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:600;display:none}
+.alert.show{display:block}
+.alert.person{background:#3a2a0f;border:1px solid #5a4a1a;color:var(--warn)}
+.stat{display:flex;gap:14px;font:600 12px ui-monospace,monospace;color:var(--ink2);margin-top:8px;flex-wrap:wrap}
+.stat b{color:var(--accent)}
+.objlist{display:flex;flex-direction:column;gap:7px;max-height:300px;overflow-y:auto}
+.obj{display:flex;align-items:center;gap:10px;font-size:13px}
+.obj .nm{min-width:76px;font-weight:600}
+.obj .bar{flex:1;height:8px;background:#0c1517;border-radius:6px;overflow:hidden}
+.obj .bar i{display:block;height:100%;background:var(--accent)}
+.obj .pc{width:42px;text-align:right;color:var(--ink2);font:600 11px ui-monospace,monospace}
+.empty{color:var(--ink2);font-size:13px;padding:20px 0;text-align:center}
+button{font:600 13px system-ui;background:var(--accent);color:#04211d;border:0;border-radius:9px;padding:9px 14px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.desc{margin-top:10px;font-size:13px;line-height:1.6;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px;min-height:20px}
+.desc .meta{font-size:11px;color:var(--ink2);margin-top:6px}
+.hint{font-size:11px;color:var(--ink2);margin-top:8px}
+</style></head><body>
+<div class="wrap">
+<header>
+  <h1>👁️ JN1 視覺</h1>
+  <span class="sub">perception · YOLO11n TensorRT</span>
+  <span class="badge" id="badge">連線中…</span>
+</header>
+<div class="grid">
+  <div class="card">
+    <h2>相機 + 即時偵測框</h2>
+    <div class="camwrap"><img id="cam" alt="camera"><canvas id="ov"></canvas></div>
+    <div class="alert person" id="alertPerson">⚠ 偵測到人</div>
+    <div class="stat">
+      <span>物件 <b id="nObj">–</b></span>
+      <span>推論 <b id="infMs">–</b> ms</span>
+      <span>更新 <b id="fps">–</b>/s</span>
+    </div>
+    <div class="hint">偵測框每約 0.7 秒更新一次；框與畫面可能有極小時間差。</div>
+  </div>
+  <div class="card">
+    <h2>🏷️ 偵測到的物件</h2>
+    <div class="objlist" id="objs"><div class="empty">尚無偵測</div></div>
+    <h2 style="margin-top:16px">🖼️ 場景描述（VLM）</h2>
+    <button id="btnSee" onclick="describe()">描述現在畫面</button>
+    <div class="desc" id="desc">按上面按鈕，讓 JN1 用一句話描述它看到什麼。</div>
+    <div class="hint">描述由 brain /see（llava）產生，需幾秒；GPU 忙時可能較慢。</div>
+  </div>
+</div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const cam=$('#cam'),ov=$('#ov'),ctx=ov.getContext('2d');
+let online=false,fcount=0,ft=Date.now();
+
+function pollFrame(){
+  const u='/frame.jpg?t='+Date.now();
+  const im=new Image();
+  im.onload=()=>{cam.src=im.src;online=true;setBadge();setTimeout(pollFrame,90);};
+  im.onerror=()=>{online=false;setBadge();setTimeout(pollFrame,1200);};
+  im.src=u;
+}
+function setBadge(){const b=$('#badge');if(online){b.className='badge on';b.textContent='● 相機即時';}else{b.className='badge';b.textContent='相機離線';}}
+
+async function detect(){
+  try{
+    const r=await fetch('/api/vision/detect',{method:'POST'});
+    if(r.ok){
+      const d=await r.json();
+      if(d.ok){render(d);fcount++;const now=Date.now();if(now-ft>=1000){$('#fps').textContent=fcount;fcount=0;ft=now;}}
+    }
+  }catch(e){}
+  setTimeout(detect,700);
+}
+function render(d){
+  const dets=d.detections||[];
+  $('#nObj').textContent=d.num_detections??dets.length;
+  $('#infMs').textContent=d.inference_time_ms??'–';
+  // 物件清單（依信心排序）
+  const box=$('#objs');
+  if(!dets.length){box.innerHTML='<div class="empty">尚無偵測</div>';}
+  else{
+    const sorted=[...dets].sort((a,b)=>b.confidence-a.confidence);
+    box.innerHTML=sorted.map(o=>{
+      const pc=Math.round(o.confidence*100);
+      return '<div class="obj"><span class="nm">'+esc(o.label_zh||o.label)+'</span>'+
+             '<span class="bar"><i style="width:'+pc+'%"></i></span><span class="pc">'+pc+'%</span></div>';
+    }).join('');
+  }
+  // 有人預警
+  const hasPerson=dets.some(o=>o.label==='person'||o.label_zh==='人');
+  $('#alertPerson').classList.toggle('show',hasPerson);
+  // 畫框（依相機自然解析度縮放）
+  drawBoxes(dets);
+}
+function drawBoxes(dets){
+  const W=cam.clientWidth,H=cam.clientHeight;
+  if(!W||!H){return;}
+  ov.width=W;ov.height=H;ctx.clearRect(0,0,W,H);
+  const nw=cam.naturalWidth||640,nh=cam.naturalHeight||480;
+  const sx=W/nw,sy=H/nh;
+  ctx.lineWidth=2;ctx.font='600 12px system-ui';
+  dets.forEach(o=>{
+    const[x1,y1,x2,y2]=o.bbox||[0,0,0,0];
+    const person=(o.label==='person'||o.label_zh==='人');
+    ctx.strokeStyle=person?'#fbbf24':'#2dd4bf';
+    ctx.strokeRect(x1*sx,y1*sy,(x2-x1)*sx,(y2-y1)*sy);
+    const t=(o.label_zh||o.label)+' '+Math.round(o.confidence*100)+'%';
+    ctx.fillStyle=person?'#fbbf24':'#2dd4bf';
+    const tw=ctx.measureText(t).width+8;
+    ctx.fillRect(x1*sx,Math.max(0,y1*sy-16),tw,16);
+    ctx.fillStyle='#04211d';ctx.fillText(t,x1*sx+4,Math.max(11,y1*sy-4));
+  });
+}
+let seeing=false;
+async function describe(){
+  if(seeing)return;seeing=true;$('#btnSee').disabled=true;
+  $('#desc').textContent='JN1 正在看…（幾秒）';
+  try{
+    const r=await fetch('/api/vision/describe',{method:'POST'});
+    const d=await r.json();
+    if(d.ok&&d.reply){$('#desc').innerHTML=esc(d.reply)+'<div class="meta">來源：'+esc(d.source||'vision')+(d.vlm_en?'　·　'+esc(d.vlm_en):'')+'</div>';}
+    else{$('#desc').textContent=(d.reply||'視覺服務暫時不可用。');}
+  }catch(e){$('#desc').textContent='連線失敗：'+e.message;}
+  seeing=false;$('#btnSee').disabled=false;
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+pollFrame();detect();
+</script>
+</body></html>

@@ -9,8 +9,8 @@
 .tele .hot{color:#fbbf24}.tele .bad{color:#f87171}
 iframe{width:100%;height:calc(100vh - 53px);border:0;display:none}iframe.on{display:block}</style></head><body>
 <div class="tabs"><button id="t1" aria-selected="true" onclick="sel(1)">系統儀表板</button>
-<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button><span class="tele" id="tele" title="系統資源（每 3 秒更新）">量測中…</span></div>
-<iframe id="f1" class="on" src="/dashboard"></iframe><iframe id="f2" src="/acoustic"></iframe>
+<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button><button id="t3" aria-selected="false" onclick="sel(3)">視覺即時</button><button id="t4" aria-selected="false" onclick="sel(4)">助手即時</button><span class="tele" id="tele" title="系統資源（每 3 秒更新）">量測中…</span></div>
+<iframe id="f1" class="on" src="/dashboard"></iframe><iframe id="f2" src="/acoustic"></iframe><iframe id="f3" src="/vision"></iframe><iframe id="f4" src="/assistant"></iframe>
 <script>
 async function tele(){
   try{
@@ -28,5 +28,5 @@ async function tele(){
   }catch(e){}
 }
 tele();setInterval(tele,3000);
-function sel(n){t1.setAttribute('aria-selected',n===1);t2.setAttribute('aria-selected',n===2);
-f1.className=n===1?'on':'';f2.className=n===2?'on':'';}</script></body></html>
+function sel(n){t1.setAttribute('aria-selected',n===1);t2.setAttribute('aria-selected',n===2);t3.setAttribute('aria-selected',n===3);t4.setAttribute('aria-selected',n===4);
+f1.className=n===1?'on':'';f2.className=n===2?'on':'';f3.className=n===3?'on':'';f4.className=n===4?'on':'';}</script></body></html>

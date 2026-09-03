@@ -1,0 +1,124 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>JN1 助手</title>
+<style>
+:root{--bg:#0a1113;--panel:#101a1d;--panel2:#0c1517;--line:#1e2d31;--ink:#e6f0f1;--ink2:#8aa1a6;
+--accent:#2dd4bf;--accent2:#0d9488;--cloud:#60a5fa;--good:#4ade80;--bad:#f87171}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+display:flex;height:100vh}
+.side{width:230px;flex-shrink:0;border-right:1px solid var(--line);background:var(--panel);padding:12px;display:flex;flex-direction:column;gap:10px}
+@media(max-width:720px){.side{display:none}}
+.side h2{margin:0;font-size:14px}
+.camthumb{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3}
+.camthumb img{position:absolute;inset:0;width:100%;height:100%}
+.camtag{position:absolute;left:6px;bottom:6px;font:600 10px system-ui;background:rgba(0,0,0,.55);color:#fff;padding:2px 7px;border-radius:10px}
+.side .st{font-size:12px;color:var(--ink2)}
+.side .st b{color:var(--good)}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+header{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+header h1{margin:0;font-size:15px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ink2);display:inline-block}
+.dot.ok{background:var(--good)}.dot.bad{background:var(--bad)}
+.spacer{flex:1}
+.tgl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);cursor:pointer}
+#log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:min(80%,640px);padding:10px 13px;border-radius:13px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.me{align-self:flex-end;background:var(--accent2);color:#04211d;border-bottom-right-radius:4px}
+.bot{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.bot.err{border-color:var(--bad);color:#fca5a5}
+.meta{align-self:flex-start;font-size:11px;color:var(--ink2);margin:-6px 0 0 4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tag{padding:1px 7px;border-radius:20px;border:1px solid var(--line);font-weight:600}
+.tag.local{color:var(--accent);border-color:var(--accent2)}
+.tag.cloud{color:var(--cloud);border-color:#1e3a5f}
+.tag.vision{color:#a78bfa;border-color:#3a2f5f}
+.tag.intent{color:var(--ink2)}
+.typing{align-self:flex-start;color:var(--ink2);font-size:13px;padding:4px}
+#quick{display:flex;gap:7px;overflow-x:auto;padding:9px 12px;background:var(--panel2);border-top:1px solid var(--line)}
+#quick button{white-space:nowrap;font:600 12.5px system-ui;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:7px 13px;cursor:pointer;flex-shrink:0}
+#quick button:hover{border-color:var(--accent2);color:var(--accent)}
+form{display:flex;gap:8px;padding:10px 12px;background:var(--panel);border-top:1px solid var(--line)}
+#q{flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit}
+#q:focus{outline:none;border-color:var(--accent2)}
+#send{background:var(--accent);color:#04211d;border:0;border-radius:10px;padding:11px 20px;font:700 14px system-ui;cursor:pointer}
+#send:disabled{opacity:.45;cursor:not-allowed}
+.hint{font-size:11px;color:var(--ink2);padding:0 14px 8px;background:var(--panel)}
+</style></head><body>
+<div class="side">
+  <h2>👀 JN1 現在看到</h2>
+  <div class="camthumb"><img id="cam" alt="cam"><span class="camtag" id="camtag">相機即時</span></div>
+  <button id="btnSee" onclick="quick('__see__')" style="font:600 13px system-ui;background:var(--accent);color:#04211d;border:0;border-radius:9px;padding:9px;cursor:pointer">描述現在畫面</button>
+  <div class="st" id="brainSt">brain：檢查中…</div>
+  <div class="st" style="margin-top:auto;line-height:1.6">本地 qwen 先答，難題自動問<br>雲端 Gemini，回覆會標來源。</div>
+</div>
+<div class="main">
+  <header>
+    <span class="dot" id="dot"></span><h1>🤖 JN1 助手</h1>
+    <span class="spacer"></span>
+    <label class="tgl"><input type="checkbox" id="speak"> 唸出來</label>
+  </header>
+  <div id="log"></div>
+  <div id="quick"></div>
+  <form id="f" autocomplete="off">
+    <input id="q" placeholder="問我任何事，或叫我看看前面…" autocomplete="off">
+    <button id="send" type="submit">送出</button>
+  </form>
+  <div class="hint">「你看到什麼」「唸出上面的字」「前面多遠」會實際去看鏡頭；一般問題走本地／雲端大腦。</div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const log=$('#log');
+const QUICK=[
+  ['👀 你看到什麼？','你看到什麼？',false],
+  ['🖼️ 仔細描述畫面','__see__',false],
+  ['🔡 唸出上面的字','上面寫什麼字？',false],
+  ['📏 前面多遠？','前面的東西離我多遠？',false],
+  ['🙋 你是誰？','你是誰？',false],
+  ['🧰 你會做什麼？','你會做什麼？',false],
+  ['📍 你在哪裡？','你在哪裡？',false],
+];
+QUICK.forEach(([lab,txt])=>{const b=document.createElement('button');b.type='button';b.textContent=lab;b.onclick=()=>quick(txt);$('#quick').appendChild(b);});
+
+// 相機縮圖
+function pollFrame(){const im=new Image();im.onload=()=>{$('#cam').src=im.src;$('#camtag').textContent='● 相機即時';setTimeout(pollFrame,120);};im.onerror=()=>{$('#camtag').textContent='相機離線';setTimeout(pollFrame,1500);};im.src='/frame.jpg?t='+Date.now();}
+
+function add(cls,text){const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+function meta(intent,source){const d=document.createElement('div');d.className='meta';
+  let cls='local',lbl='🏠 本地 qwen';
+  if(source==='cloud'){cls='cloud';lbl='☁️ 雲端 Gemini';}
+  else if(source&&source.indexOf('vision')>=0){cls='vision';lbl='👁️ 視覺 VLM';}
+  d.innerHTML='<span class="tag '+cls+'">'+lbl+'</span>'+(intent?'<span class="tag intent">'+intent+'</span>':'');
+  log.appendChild(d);log.scrollTop=log.scrollHeight;}
+function typing(){const d=document.createElement('div');d.className='typing';d.textContent='思考中…';log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+
+let busy=false;
+function quick(t){$('#q').value=(t==='__see__'?'（描述畫面）':t);send(t);}
+async function send(forced){
+  const q=forced||$('#q').value.trim();
+  if(!q||busy)return;busy=true;$('#send').disabled=true;
+  add('me', forced==='__see__'?'描述現在畫面':q);
+  if(!forced)$('#q').value='';
+  const t=typing();
+  try{
+    let d;
+    if(forced==='__see__'){
+      const r=await fetch('/api/assistant/see',{method:'POST'});d=await r.json();
+    }else{
+      const r=await fetch('/api/assistant/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:q,speak:$('#speak').checked})});
+      d=r.ok?await r.json():{ok:false,error:'服務回應 '+r.status};
+    }
+    t.remove();
+    if(d&&d.ok!==false&&d.reply){add('bot',d.reply);meta(d.intent,d.source);}
+    else{add('bot err',(d&&(d.reply||d.error))||'沒有拿到回覆');}
+  }catch(e){t.remove();add('bot err','連線失敗：'+e.message);}
+  busy=false;$('#send').disabled=false;$('#q').value='';$('#q').focus();
+}
+$('#f').addEventListener('submit',e=>{e.preventDefault();send();});
+
+async function health(){try{const r=await fetch('/api/assistant/health');const d=await r.json();
+  const ok=d.ok;$('#dot').className='dot '+(ok?'ok':'bad');
+  $('#brainSt').innerHTML='brain：'+(ok?'<b>已連線</b>':'未回應');}catch(e){$('#brainSt').textContent='brain：未回應';}}
+health();setInterval(health,15000);pollFrame();
+add('bot','你好，我是 JN1。可以問我看到什麼、唸字、估距離，或直接聊天。左邊是我現在看到的畫面。');
+</script>
+</body></html>

@@ -344,6 +344,84 @@ async def telemetry():
     return d
 
 
+# ============================================================================
+# JN1 視覺 + 助手（代理現有服務：perception :8001、brain :21500）
+# ============================================================================
+PERCEPTION_URL = os.environ.get("PERCEPTION_URL", "http://127.0.0.1:8001")
+BRAIN_URL = os.environ.get("BRAIN_URL", "http://127.0.0.1:21500")
+
+
+@app.get("/vision")
+async def vision_page():
+    f = Path(__file__).parent / "static" / "vision.html"
+    return FileResponse(str(f)) if f.exists() else Response(status_code=404, content="vision.html not found")
+
+
+@app.get("/assistant")
+async def assistant_page():
+    f = Path(__file__).parent / "static" / "assistant.html"
+    return FileResponse(str(f)) if f.exists() else Response(status_code=404, content="assistant.html not found")
+
+
+@app.post("/api/vision/detect")
+async def vision_detect():
+    """代理 perception /state（YOLO 偵測）"""
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as c:
+            r = await c.post(PERCEPTION_URL + "/state")
+            return r.json()
+    except Exception as e:
+        return {"ok": False, "error": type(e).__name__}
+
+
+@app.post("/api/vision/describe")
+async def vision_describe():
+    """代理 brain /see（VLM 場景描述）"""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as c:
+            r = await c.post(BRAIN_URL + "/see")
+            return r.json()
+    except Exception as e:
+        return {"ok": False, "reply": "視覺服務暫時不可用。", "error": type(e).__name__}
+
+
+@app.post("/api/assistant/ask")
+async def assistant_ask(payload: dict):
+    """代理 brain /ask（本地先答·難題問雲端由 brain 內建處理）"""
+    text = (payload or {}).get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return {"ok": False, "error": "text 不可為空"}
+    if len(text) > 2000:
+        return {"ok": False, "error": "問題太長"}
+    body = {"text": text.strip(), "speak": bool((payload or {}).get("speak"))}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as c:
+            r = await c.post(BRAIN_URL + "/ask", json=body)
+            return r.json()
+    except Exception as e:
+        return {"ok": False, "error": "無法連線 brain: " + type(e).__name__}
+
+
+@app.post("/api/assistant/see")
+async def assistant_see():
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as c:
+            r = await c.post(BRAIN_URL + "/see")
+            return r.json()
+    except Exception as e:
+        return {"ok": False, "reply": "視覺服務暫時不可用。", "error": type(e).__name__}
+
+
+@app.get("/api/assistant/health")
+async def assistant_health():
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as c:
+            r = await c.get(BRAIN_URL + "/health")
+            return {"ok": r.status_code == 200}
+    except Exception:
+        return {"ok": False}
+
+
 @app.get("/api/status")
 async def get_status():
     """返回后端状态"""
