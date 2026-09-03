@@ -1,0 +1,14 @@
+[Unit]
+Description=JN1 TTS host player
+After=default.target
+
+[Service]
+Type=simple
+Environment=JN1_TTS_TEMPO=1.4
+Environment=JN1_TTS_POLL=0.15
+ExecStart=/usr/bin/python3 /home/jetson/0_JN1_Robotcar/tools/jn1_tts_player.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

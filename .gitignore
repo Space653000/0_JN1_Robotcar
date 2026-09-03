@@ -4,3 +4,4 @@ data/*
 *.wav
 __pycache__/
 *.pyc
+docker-compose.yml.bak.*
