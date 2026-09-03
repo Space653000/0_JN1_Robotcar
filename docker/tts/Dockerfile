@@ -14,6 +14,7 @@ RUN mkdir -p /voices && \
       https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx && \
     curl -fsSL -o /voices/zh_CN-huayan-medium.onnx.json \
       https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx.json
+RUN pip install --no-cache-dir kokoro-onnx==0.6.1 "misaki[zh]==0.9.4" onnxruntime==1.23.2
 COPY src/tts/server.py .
 EXPOSE 8000
 CMD ["uvicorn","server:app","--host","0.0.0.0","--port","8000"]
