@@ -126,7 +126,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;pad
       <tr><td class="cap">🔡 看-讀字</td><td class="now">PaddleOCR</td><td class="lim">可用</td><td class="goal">維持</td><td><span class="st s-done">PASS</span></td></tr>
       <tr><td class="cap">🖼️ 看-懂場景 VLM</td><td class="now">llava（ollama，堪用·品質受限，已 re-pull 持久化）</td><td class="lim">moondream2 transformers 路結案（框架牆·非硬體）</td><td class="goal">ollama 原生 moondream／雲端 Gemini</td><td><span class="st s-wip">MARGIN</span></td></tr>
       <tr><td class="cap">🧠 想 Agent</td><td class="now">qwen2.5:3b＋自建代理（反幻覺）· 實測 /ask 真推理 ✓</td><td class="lim">永久本地主腦；模型已持久化（/data，重啟不丟）</td><td class="goal">＋雲端專家（可失敗）</td><td><span class="st s-done">PASS</span></td></tr>
-    <tr><td class="cap">🎯 聲學視覺化</td><td class="now">JN1 聲學定位（XVF3800 2ch）：相機＋方向＋對數頻譜(20Hz–8kHz)＋分類，20fps</td><td class="lim">方向卡點：2ch 只有處理後波束、板載 DoA 讀不到 → 方向＝實驗值；頻寬 ≤8kHz</td><td class="goal">raw 4-mic 才能準（未來硬體）</td><td><span class="st s-wip">MARGIN</span></td></tr>
+    <tr><td class="cap">🎯 聲學視覺化</td><td class="now">JN1 聲學定位（XVF3800 2ch）：相機＋方向＋對數頻譜(20Hz–8kHz)＋分類，20fps</td><td class="lim">板載 DoA 已接通（xvf_host aarch64＋udev）→ 方向即時可追蹤（實測左/前/右/後皆對）；剩餘限制：頻寬 ≤8kHz（2ch 處理後波束）</td><td class="goal">raw 4-mic 才能準（未來硬體）</td><td><span class="st s-wip">MARGIN</span></td></tr>
       </table></div>
     <div class="callout"><h3 style="color:var(--accent-ink)">📋 為什麼 on-device moondream2 結案（誠實版）</h3><p>9 次嘗試每次都是不同的真實障礙：compose 指不對 → 缺 transformers → numpy 2.x 衝突 → build 時 DNS 解不到 → 最強打法（不 build、直跑 base image）第一次摸到模型載入機制，撞到<b>真牆</b>：moondream2 需 <code>trust_remote_code</code>，在離線＋容器無 pip 網路下，transformers 動態模組解不了它的自訂程式碼（<code>FileNotFoundError: layers.py</code>）。<b>這是框架契合問題，不是硬體/模型不相容。</b>已證明：torch+CUDA 可用、numpy 診斷正確、模型檔無損、隔離測試全程生產零損傷。未來便宜路＝<code>ollama pull moondream</code>（原生 GGUF，繞開 transformers）。</p></div>
   
@@ -243,13 +243,13 @@ Thank you!</pre>
       <div class="mile"><div class="tag">M15<span class="st s-bad">誠實結案</span></div><div class="body"><h3>on-device moondream2 結案（框架牆）</h3><p>9 次嘗試：compose/build/DNS 管線 ×8 → 最強打法(不 build 直跑 base)第一次摸到模型載入 → <b>撞真牆</b>(trust_remote_code 離線＋無 pip)。非硬體/模型不相容。生產全程零損傷。未來走 <code>ollama pull moondream</code> 或雲端 Gemini（8/28）。</p></div></div>
       <div class="mile"><div class="tag">M19–M27b<span class="st s-done">完成</span></div><div class="body"><h3>找回並救活本地主腦＋真恢復點</h3><p>雲端評估＝GO WITH CONDITIONS；全系統盤點；<b>抓出 qwen/llava 竟遺失</b>（health 綠燈是假象）→re-pull＋改掛載 /data <b>持久化（重啟不丟）</b>、實測 qwen 真推理＋brain /ask ✓；重設「含模型 re-pull」的真恢復點（8/29）。</p></div></div>
       <div class="mile"><div class="tag">M28–M37<span class="st s-done">完成</span></div><div class="body"><h3>壓測 CURRENT_PEAK ＋ 完整備份</h3><p>M28b 直呼 ollama 真壓測＝峰值 12.1G/15.7G（77%）；完整備份到 _V1_Backup_20260829。下一步：雲端 gateway（B 案 OpenRouter）／ROSOrin 發信。</p></div></div>
-      <div class="mile active"><div class="tag">M38–M41<span class="st s-done">完成</span></div><div class="body"><h3>JN1 聲學定位（XVF3800 聲學視覺化）　◀ 現在</h3><p>jn1-work：即時相機（與視覺服務共用 <code>/frame.jpg</code>、零搶相機零風險）＋聲源方向＋對數頻譜(20Hz–8kHz)＋時頻圖＋聲音分類＋一鍵校準；修掉反轉的 sleep 公式（<b>fps 1.6→20</b>）。<b>誠實結論</b>：2ch 只有處理後波束、板載 DoA 讀不到 → 方向做不準、標「實驗」；相機/頻譜/分類穩定可用。三方備份 V2（11,019 檔/18G）＋三分支同步。<b>統一首頁兩頁籤＋HTTP Basic Auth 登入＋Cloudflare Tunnel 已上線</b>（wss 修復、/ws 放行）。</p></div></div>
+      <div class="mile active"><div class="tag">M38–M41<span class="st s-done">完成</span></div><div class="body"><h3>JN1 聲學定位（XVF3800 聲學視覺化）　◀ 現在</h3><p>jn1-work：即時相機（與視覺服務共用 <code>/frame.jpg</code>、零搶相機零風險）＋聲源方向＋對數頻譜(20Hz–8kHz)＋時頻圖＋聲音分類＋一鍵校準；修掉反轉的 sleep 公式（<b>fps 1.6→20</b>）。<b>誠實結論</b>：板載 DoA 經 xvf_host（AUDIO_MGR_SELECTED_AZIMUTHS）接通、背景執行緒 5Hz 不阻塞事件迴圈，方向即時可追蹤（M42 影片實測，線隨聲源移動）；相機/頻譜/分類穩定可用；頻寬仍 ≤8kHz。<b>統一首頁兩頁籤＋HTTP Basic Auth 登入＋Cloudflare Tunnel 已上線</b>（wss 修復、/ws 放行）。</p></div></div>
       <div class="mile"><div class="tag">M4<span class="st s-todo">下一大步</span></div><div class="body"><h3>自主移動 ＋ ROS（資源已確認夠）</h3><p>採購 PASS 後接底盤/光達/手臂、Nav2/SLAM，複用 JN1_ROS2 橋接。</p></div></div>
     </div>
   </section>
 
   <footer class="foot">
-    <span>最後更新　2026-09-03（M41 JN1 聲學定位上線·統一首頁＋登入＋上網·方向受硬體限制）</span>
+    <span>最後更新　2026-09-03（M42 板載 DoA 上線·方向即時可追蹤·統一首頁＋登入＋上網）</span>
     <span>資料以 GitHub 實測為準</span>
   </footer>
 
