@@ -385,6 +385,19 @@ async def vision_describe():
         return {"ok": False, "reply": "視覺服務暫時不可用。", "error": type(e).__name__}
 
 
+@app.post("/api/tts/say")
+async def tts_say(payload: dict):
+    text = (payload or {}).get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return {"ok": False, "error": "text 不可為空"}
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as c:
+            r = await c.post(TTS_URL + "/say", json={"text": text.strip()})
+            return r.json()
+    except Exception as e:
+        return {"ok": False, "error": "無法連線 tts: " + type(e).__name__}
+
+
 @app.post("/api/assistant/ask")
 async def assistant_ask(payload: dict):
     """代理 brain /ask（本地先答·難題問雲端由 brain 內建處理）"""

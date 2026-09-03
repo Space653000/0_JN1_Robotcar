@@ -59,6 +59,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div class="objlist" id="objs"><div class="empty">尚無偵測</div></div>
     <h2 style="margin-top:16px">🖼️ 場景描述（VLM）</h2>
     <button id="btnSee" onclick="describe()">描述現在畫面</button>
+    <button id="btnSpeak" onclick="speakDesc()" style="margin-left:6px;background:var(--panel2);color:var(--accent);border:1px solid var(--accent2)">🔊 唸出描述</button>
     <div class="desc" id="desc">按上面按鈕，讓 JN1 用一句話描述它看到什麼。</div>
     <div class="hint">描述由 brain /see（llava）產生，需幾秒；GPU 忙時可能較慢。</div>
   </div>
@@ -135,10 +136,15 @@ async function describe(){
   try{
     const r=await fetch('/api/vision/describe',{method:'POST'});
     const d=await r.json();
-    if(d.ok&&d.reply){$('#desc').innerHTML=esc(d.reply)+'<div class="meta">來源：'+esc(d.source||'vision')+(d.vlm_en?'　·　'+esc(d.vlm_en):'')+'</div>';}
+    if(d.ok&&d.reply){lastDesc=d.reply;$('#desc').innerHTML=esc(d.reply)+'<div class="meta">來源：'+esc(d.source||'vision')+(d.vlm_en?'　·　'+esc(d.vlm_en):'')+'</div>';}
     else{$('#desc').textContent=(d.reply||'視覺服務暫時不可用。');}
   }catch(e){$('#desc').textContent='連線失敗：'+e.message;}
   seeing=false;$('#btnSee').disabled=false;
+}
+let lastDesc="";
+async function speakDesc(){
+  if(!lastDesc)return;
+  try{await fetch("/api/tts/say",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:lastDesc})});}catch(e){}
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 pollFrame();detect();

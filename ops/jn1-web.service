@@ -1,0 +1,13 @@
+[Unit]
+Description=JN1 web app (8011 shell + acoustic/vision/assistant)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jetson/0_JN1_Robotcar
+ExecStart=/usr/bin/python3 acoustic_app/server.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

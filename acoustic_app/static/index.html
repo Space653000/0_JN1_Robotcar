@@ -102,6 +102,7 @@
     </div>
     <span id="modeBadge" class="badge demo"><span class="dot"></span>示範資料 DEMO</span>
     <button class="iconbtn" id="themeBtn" aria-label="切換深淺色">◐ 主題</button>
+    <button class="iconbtn" onclick="speakAz()">🔊 唹方位</button>
   </header>
 
   <div class="honesty">
@@ -203,6 +204,9 @@
 <script>
 /* JN1 聲學定位 — frontend (LIVE via ws://<host>/ws/live, else DEMO) */
 const $=s=>document.querySelector(s);
+function jn1Say(t){try{fetch("/api/tts/say",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});}catch(e){}}
+function speakAz(){var az=(document.getElementById("mAz")||{}).textContent||"";if(!az||az==="–"){jn1Say("目前沒有偵測到明確的聲源方向");return;}var a=parseInt(az,10);var d=(a<=22||a>337)?"正前方":(a<=67)?"右前方":(a<=112)?"右方":(a<=157)?"右後方":(a<=202)?"後方":(a<=247)?"左後方":(a<=292)?"左方":"左前方";jn1Say("聲音來自"+d+"，方位角 "+a+" 度");}
+
 const state={mode:'demo',algo:'hybrid',flow:300,fhigh:6000,dyn:12,smooth:0.45,scale:'auto',
   recording:false,azEMA:null,lvlEMA:null,lastT:performance.now(),frames:0,fps:0,hfov:70,camUrl:'/camera.mjpg'};
 const CLASSES=['語音 Speech','馬達 Motor','風噪 Hiss','敲擊 Impact','機械 Mech','靜音 Quiet'];

@@ -280,3 +280,13 @@ document.querySelectorAll('.copybtn').forEach(function(btn){
 });
 function fallback(txt,done){var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
 </script>
+
+<button onclick="jn1SpeakStatus()" style="position:fixed;right:16px;bottom:16px;z-index:9999;background:#0d9488;color:#fff;border:0;border-radius:24px;padding:10px 16px;font:600 13px system-ui;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.35)">🔊 唹系統狀態</button>
+<script>
+async function jn1Say(t){try{await fetch("/api/tts/say",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});}catch(e){}}
+async function jn1SpeakStatus(){try{
+  const r=await fetch("/api/telemetry");const d=await r.json();
+  const n=(x)=>x==null?"?":Math.round(x);
+  jn1Say("系統狀態，記憶體使用 "+n(d.ram_used_pct)+"%，剩餘 "+(d.ram_avail_gb!=null?d.ram_avail_gb.toFixed(1):"?")+" GB；處理器 "+n(d.cpu_pct)+"%；顯示晶片 "+n(d.gpu_pct)+"%；溫度 "+n(d.temp_c)+" 度；磁碟使用 "+n(d.disk_used_pct)+"%，剩餘 "+n(d.disk_free_gb)+" GB。");
+}catch(e){jn1Say("目前讀不到系統狀態");}}
+</script>
