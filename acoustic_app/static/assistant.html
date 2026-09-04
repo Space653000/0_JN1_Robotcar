@@ -54,6 +54,7 @@ form{display:flex;gap:8px;padding:10px 12px;background:var(--panel);border-top:1
   <header>
     <span class="dot" id="dot"></span><h1>🤖 JN1 助手</h1>
     <span class="spacer"></span>
+    <a href="/manage" id="jn1AttnMode" style="text-decoration:none;cursor:pointer;font:600 12px system-ui;padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--ink2)" title="目前運轉模式，點一下前往管理（開發）駕駛艙">讀取中…</a>
     <label class="tgl"><input type="checkbox" id="speak"> 唸出來</label>
   </header>
   <div id="log"></div>
@@ -122,3 +123,15 @@ health();setInterval(health,15000);pollFrame();
 add('bot','你好，我是 JN1。可以問我看到什麼、唸字、估距離，或直接聊天。左邊是我現在看到的畫面。');
 </script>
 </body></html>
+
+<script>
+const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+async function jn1RefreshAttnMode(){
+  try{
+    const r=await fetch('/api/mode');const d=await r.json();
+    const el=document.getElementById('jn1AttnMode');
+    if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+  }catch(e){}
+}
+jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);
+</script>

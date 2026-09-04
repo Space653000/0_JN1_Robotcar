@@ -101,6 +101,7 @@
       <span class="sub">XVF3800 · 360° 方位偵測</span>
     </div>
     <span id="modeBadge" class="badge demo"><span class="dot"></span>示範資料 DEMO</span>
+    <a href="/manage" class="badge" id="jn1AttnMode" style="text-decoration:none;cursor:pointer" title="目前運轉模式，點一下前往管理（開發）駕駛艙">讀取中…</a>
     <button class="iconbtn" id="themeBtn" aria-label="切換深淺色">◐ 主題</button>
     <button class="iconbtn" onclick="speakAz()">🔊 唹方位</button>
   </header>
@@ -467,3 +468,15 @@ fitScene();fitCam();connectLive();
 })();
 </script>
 <!-- inject end: calibration button -->
+
+<script>
+const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+async function jn1RefreshAttnMode(){
+  try{
+    const r=await fetch('/api/mode');const d=await r.json();
+    const el=document.getElementById('jn1AttnMode');
+    if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+  }catch(e){}
+}
+jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);
+</script>

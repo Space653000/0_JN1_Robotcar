@@ -41,6 +41,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <h1>👁️ JN1 視覺</h1>
   <span class="sub">perception · YOLO11n TensorRT</span>
   <span class="badge" id="badge">連線中…</span>
+  <a href="/manage" class="badge" id="jn1AttnMode" style="text-decoration:none;cursor:pointer" title="目前運轉模式，點一下前往管理（開發）駕駛艙">讀取中…</a>
 </header>
 <div class="grid">
   <div class="card">
@@ -150,3 +151,15 @@ function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>
 pollFrame();detect();
 </script>
 </body></html>
+
+<script>
+const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+async function jn1RefreshAttnMode(){
+  try{
+    const r=await fetch('/api/mode');const d=await r.json();
+    const el=document.getElementById('jn1AttnMode');
+    if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+  }catch(e){}
+}
+jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);
+</script>

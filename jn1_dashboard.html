@@ -290,3 +290,17 @@ async function jn1SpeakStatus(){try{
   jn1Say("系統狀態，記憶體使用 "+n(d.ram_used_pct)+"%，剩餘 "+(d.ram_avail_gb!=null?d.ram_avail_gb.toFixed(1):"?")+" GB；處理器 "+n(d.cpu_pct)+"%；顯示晶片 "+n(d.gpu_pct)+"%；溫度 "+n(d.temp_c)+" 度；磁碟使用 "+n(d.disk_used_pct)+"%，剩餘 "+n(d.disk_free_gb)+" GB。");
 }catch(e){jn1Say("目前讀不到系統狀態");}}
 </script>
+
+<a href="/manage" id="jn1AttnMode" style="position:fixed;left:16px;bottom:16px;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:8px 14px;font:600 13px system-ui;box-shadow:var(--shadow);text-decoration:none;cursor:pointer" title="目前運轉模式，點一下前往管理（開發）駕駛艙">讀取中…</a>
+
+<script>
+const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+async function jn1RefreshAttnMode(){
+  try{
+    const r=await fetch('/api/mode');const d=await r.json();
+    const el=document.getElementById('jn1AttnMode');
+    if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+  }catch(e){}
+}
+jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);
+</script>
