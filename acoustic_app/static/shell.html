@@ -9,8 +9,8 @@
 .tele .hot{color:#fbbf24}.tele .bad{color:#f87171}
 iframe{width:100%;height:calc(100vh - 53px);border:0;display:none}iframe.on{display:block}</style></head><body>
 <div class="tabs"><button id="t1" aria-selected="true" onclick="sel(1)">系統儀表板</button>
-<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button><button id="t3" aria-selected="false" onclick="sel(3)">視覺即時</button><button id="t4" aria-selected="false" onclick="sel(4)">助手即時</button><span class="tele" id="tele" title="系統資源（每 3 秒更新）">量測中…</span></div>
-<iframe id="f1" class="on" src="/dashboard"></iframe><iframe id="f2" src="/acoustic"></iframe><iframe id="f3" src="/vision"></iframe><iframe id="f4" src="/assistant"></iframe>
+<button id="t2" aria-selected="false" onclick="sel(2)">聲學即時</button><button id="t3" aria-selected="false" onclick="sel(3)">視覺即時</button><button id="t4" aria-selected="false" onclick="sel(4)">助手即時</button><button id="t5" aria-selected="false" onclick="sel(5)">管理（開發）</button><a href="#" id="jn1AttnMode" onclick="sel(5);return false;" style="margin-left:10px;font:600 12px system-ui;padding:5px 11px;border-radius:20px;background:#0c1517;border:1px solid #1e2d31;color:#8aa1a6;text-decoration:none;cursor:pointer" title="目前運轉模式，點一下開啟管理（開發）駕駛艙">讀取中…</a><span class="tele" id="tele" title="系統資源（每 3 秒更新）">量測中…</span></div>
+<iframe id="f1" class="on" src="/dashboard"></iframe><iframe id="f2" src="/acoustic"></iframe><iframe id="f3" src="/vision"></iframe><iframe id="f4" src="/assistant"></iframe><iframe id="f5" data-src="/manage"></iframe>
 <script>
 async function tele(){
   try{
@@ -28,5 +28,54 @@ async function tele(){
   }catch(e){}
 }
 tele();setInterval(tele,3000);
-function sel(n){t1.setAttribute('aria-selected',n===1);t2.setAttribute('aria-selected',n===2);t3.setAttribute('aria-selected',n===3);t4.setAttribute('aria-selected',n===4);
-f1.className=n===1?'on':'';f2.className=n===2?'on':'';f3.className=n===3?'on':'';f4.className=n===4?'on':'';}</script></body></html>
+/* M57：改成迴圈版，1~4 的行為跟原本完全一樣，只是多支援第 5 個頁籤。 */
+function sel(n){
+  for(var i=1;i<=5;i++){
+    var t=document.getElementById('t'+i), f=document.getElementById('f'+i);
+    if(t)t.setAttribute('aria-selected',i===n);
+    if(f)f.className=(i===n?'on':'');
+  }
+  /* 管理頁第一次被點開才真的載入：它每 8 秒會打一次 /api/health（會去戳 6 個
+     服務），常駐掛著等於永遠多一組背景輪詢，沒必要。 */
+  var f5=document.getElementById('f5');
+  if(n===5&&f5&&!f5.getAttribute('src')&&f5.getAttribute('data-src')){
+    f5.setAttribute('src',f5.getAttribute('data-src'));
+  }
+}
+window.jn1SelTab=sel;
+
+/* M57：四頁裡本來就有的連結（例如各頁的模式標籤指向 /manage、管理頁的
+   四個快速連結指向 /dashboard 等），在 iframe 裡點下去只會把那個 iframe
+   換掉，看起來像頁面錯亂。這裡由 shell 這一端統一處理：因為同源，
+   shell 可以在每個 iframe 載入完成後，把這類連結改成「切頁籤」。
+   全部包在 try 裡，萬一哪天不同源或結構變了就自動退回原本行為。 */
+var JN1_PATH2TAB={'/dashboard':1,'/acoustic':2,'/vision':3,'/assistant':4,'/manage':5};
+function jn1WireFrameLinks(fr){
+  try{
+    var d=fr.contentDocument;
+    if(!d)return;
+    var as=d.querySelectorAll('a[href]');
+    for(var i=0;i<as.length;i++){
+      var a=as[i], n=JN1_PATH2TAB[a.getAttribute('href')];
+      if(!n||a.getAttribute('data-jn1-wired'))continue;
+      a.setAttribute('data-jn1-wired','1');
+      (function(tab){a.addEventListener('click',function(e){e.preventDefault();sel(tab);});})(n);
+    }
+  }catch(e){}
+}
+(function(){
+  for(var i=1;i<=5;i++){
+    (function(fr){ if(fr)fr.addEventListener('load',function(){jn1WireFrameLinks(fr);}); })(document.getElementById('f'+i));
+  }
+})();
+
+/* M57：shell 最上面也顯示目前模式，不用進頁籤就看得到。 */
+var JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+async function jn1RefreshAttnMode(){
+  try{
+    const r=await fetch('/api/mode',{cache:'no-store'});const d=await r.json();
+    const el=document.getElementById('jn1AttnMode');
+    if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+  }catch(e){}
+}
+jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);</script></body></html>
