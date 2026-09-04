@@ -158,8 +158,13 @@ services:
       - OCR_URL=http://ocr:8000
       - DEPTH_URL=http://depth:8000
       - LISTEN_SECONDS=${LISTEN_SECONDS:-5}
+      - JN1_MODE_FILE=/appdata/mode.json          # M58：五模式狀態（唯讀）
     ports:
       - "127.0.0.1:${BRAIN_PORT:-21500}:8000"
+    volumes:
+      # M58：唯讀掛整個 data 目錄（不是單掛 mode.json）——modes.py 用
+      # rename 做原子寫入會換 inode，單掛檔案會讓容器看不到更新。
+      - ./data:/appdata:ro
     depends_on: [ollama-new, asr, tts, vision]
     restart: unless-stopped
 

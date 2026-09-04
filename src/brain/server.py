@@ -15,6 +15,7 @@ Backwards compatible with the M1 asr(/listen)+tts(/say) contract.
 """
 import os
 import re
+import json
 import time
 import logging
 import threading
@@ -695,6 +696,28 @@ def stats_reset():
 
 # ---- M31 雲端顧問（本地先答，弱才問，fail-open）----
 CLOUD_GW = os.environ.get("CLOUD_GW_URL", "http://cloud-gw:8000")
+
+# ---- M58：五模式的「雲端」旗標 ----------------------------------------
+# 藍圖裡巡航是「移動中保持警覺、雲端關/靜音」，待機是「打盹省電、雲端關」，
+# modes.py 也早就宣告了 cloud:False，但一直沒有任何程式在讀它。
+# 這裡刻意不複製一份 MODES 表：modes.py 每次切模式都會把解析後的旗標寫進
+# data/mode.json，brain 唯讀掛載後直接讀那個結果，維持單一事實來源。
+JN1_MODE_FILE = os.environ.get("JN1_MODE_FILE", "/appdata/mode.json")
+
+
+def _jn1_mode_state():
+    try:
+        with open(JN1_MODE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _mode_allows_cloud():
+    """讀不到檔案、或檔案裡沒這個欄位時一律回 True（維持現有行為，不會因為
+    模式功能出問題就把雲端整個關掉）。只有明確寫著 cloud:false 才擋。"""
+    return _jn1_mode_state().get("cloud", True) is not False
+# ----------------------------------------------------------------------
 _WEAK_MARKERS = ("不知道","不清楚","不確定","無法回答","無法確定","抱歉","sorry","not sure","i don't know","cannot answer")
 
 def _local_answer_weak(reply):
@@ -723,10 +746,18 @@ def ask(req: Ask):
     res = handle_intent(intent, req.text)
     # M31: chat 意圖且本地答案弱 -> 自動問雲端; 雲端 null 一律退本地(斷網照常)
     if intent == "chat" and _local_answer_weak(res.get("reply", "")):
-        _c = _ask_cloud(req.text)
-        if _c:
-            res["reply"] = _c
-            res["source"] = "cloud"
+        if _mode_allows_cloud():
+            _c = _ask_cloud(req.text)
+            if _c:
+                res["reply"] = _c
+                res["source"] = "cloud"
+        else:
+            # M58：巡航/待機不上雲。照實在回應裡講明有跳過、為什麼跳過，
+            # 不要讓它看起來像「問過雲端但雲端沒東西」。
+            _st = _jn1_mode_state()
+            res["cloud_skipped"] = {"reason": "mode_cloud_off",
+                                    "mode": _st.get("mode"),
+                                    "label": _st.get("label")}
     tts = _speak(res["reply"]) if req.speak else None
     return {"ok": True, "intent": intent, **res, "tts": tts}
 

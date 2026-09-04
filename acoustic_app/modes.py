@@ -268,11 +268,27 @@ def set_mode(mode):
     if mode not in MODES:
         return {"ok": False, "error": "unknown mode: " + str(mode)}
     m = MODES[mode]
-    st = {"mode": mode, "ts": time.time()}
+    # M58：把解析後的旗標一起寫進去，讓別的行程（例如 docker 裡的 brain）
+    # 不必自己再複製一份 MODES 表，就能知道現在該不該用雲端、視覺該多快。
+    # MODES 仍然是唯一的事實來源，這裡只是把「它解析後的結果」落地。
+    st = {"mode": mode, "ts": time.time(),
+          "label": m.get("label"),
+          "big": m.get("big"),
+          "vlm": m.get("vlm", False),
+          "cloud": m.get("cloud", True),
+          "vision": m.get("vision")}
     try:
         os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-        with open(STATE_FILE, "w") as f:
+        # M58：原子寫入（先寫暫存檔再 rename）。現在有跨行程的讀者了，
+        # 直接覆寫有機會讓對方讀到寫到一半的檔案。
+        # 註：因為 rename 會換 inode，docker 那邊必須掛「整個 data 目錄」，
+        # 單獨掛這個檔案的話容器會永遠卡在舊 inode 上看不到更新。
+        _tmp = STATE_FILE + ".tmp"
+        with open(_tmp, "w") as f:
             json.dump(st, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(_tmp, STATE_FILE)
     except Exception as e:
         return {"ok": False, "error": "write state failed: " + type(e).__name__}
     gen = _bump_generation()
