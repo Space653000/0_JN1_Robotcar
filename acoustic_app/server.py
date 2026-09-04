@@ -398,6 +398,20 @@ async def tts_say(payload: dict):
         return {"ok": False, "error": "無法連線 tts: " + type(e).__name__}
 
 
+import modes as _jn1_modes
+
+@app.get("/api/mode")
+async def api_get_mode():
+    st = _jn1_modes.get_mode()
+    st["config"] = _jn1_modes.MODES.get(st.get("mode"), {})
+    st["all"] = _jn1_modes.MODES
+    return st
+
+@app.post("/api/mode")
+async def api_set_mode(payload: dict):
+    return _jn1_modes.set_mode((payload or {}).get("mode", ""))
+
+
 @app.post("/api/assistant/ask")
 async def assistant_ask(payload: dict):
     """代理 brain /ask（本地先答·難題問雲端由 brain 內建處理）"""
