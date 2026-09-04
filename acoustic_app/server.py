@@ -384,7 +384,7 @@ async def vision_detect():
 async def vision_describe():
     """代理 brain /see（VLM 場景描述）"""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as c:
+        async with httpx.AsyncClient(timeout=90.0) as c:  # M53：實測完整鏈路約39秒，30秒不夠
             r = await c.post(BRAIN_URL + "/see")
             return r.json()
     except Exception as e:
