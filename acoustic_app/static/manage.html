@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JN1 管理（開發）駕駛艙</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#161f2b; --line:#223047;
+    --text:#e6edf3; --dim:#8fa3b8; --accent:#4fd1c5; --warn:#f5a623;
+    --bad:#ff5c5c; --good:#3ddc84;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;padding:16px 12px 60px;}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:.85rem;margin-bottom:16px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.8rem;background:var(--panel2);border:1px solid var(--line)}
+  .badge.mode-manage{border-color:var(--accent);color:var(--accent)}
+  .badge.mode-chat{border-color:#7cc4ff;color:#7cc4ff}
+  .badge.mode-observe{border-color:var(--warn);color:var(--warn)}
+  .badge.mode-patrol{border-color:#c792ea;color:#c792ea}
+  .badge.mode-standby{border-color:var(--dim);color:var(--dim)}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  section h2{font-size:1rem;margin:0 0 10px;color:var(--text);display:flex;align-items:center;gap:8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .modebtn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 8px;color:var(--text);cursor:pointer;text-align:center;font-size:.9rem;transition:transform .1s}
+  .modebtn:active{transform:scale(.96)}
+  .modebtn.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:#0f2622}
+  .modebtn .ic{font-size:1.4rem;display:block;margin-bottom:4px}
+  .modebtn .desc{display:block;color:var(--dim);font-size:.72rem;margin-top:4px;line-height:1.3}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:.85rem}
+  .card a{color:var(--text);text-decoration:none}
+  .card .name{font-weight:600;display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);display:inline-block;flex:none}
+  .dot.ok{background:var(--good);box-shadow:0 0 6px var(--good)}
+  .dot.bad{background:var(--bad);box-shadow:0 0 6px var(--bad)}
+  .dot.pending{background:var(--warn)}
+  .card .meta{color:var(--dim);font-size:.72rem;margin-top:4px;word-break:break-all}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input[type=text],input[type=url],select{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px;font-size:.9rem;flex:1;min-width:140px}
+  button{background:var(--accent);color:#04211d;border:none;padding:8px 14px;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem}
+  button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  button:disabled{opacity:.5;cursor:default}
+  pre{background:#060a0e;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:.75rem;overflow-x:auto;color:#9fe6d0;white-space:pre-wrap;word-break:break-all}
+  .warn-text{color:var(--warn);font-size:.78rem}
+  .bad-text{color:var(--bad);font-size:.78rem}
+  .good-text{color:var(--good);font-size:.78rem}
+  .field-label{font-size:.78rem;color:var(--dim);display:block;margin-bottom:4px}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .flex2{display:flex;gap:10px;flex-wrap:wrap}
+  .flex2>div{flex:1;min-width:220px}
+  .footer-note{color:var(--dim);font-size:.72rem;text-align:center;margin-top:20px}
+  @media (min-width:700px){ body{max-width:960px;margin:0 auto} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>🎛️ JN1 管理（開發）駕駛艙</h1>
+    <div class="sub">全部能力常駐・注意力槽隨模式切換・不進終端機</div>
+  </div>
+  <div style="text-align:right">
+    <span class="badge" id="modeBadge">讀取中…</span>
+    <div class="sub" id="lastUpdated">—</div>
+  </div>
+</div>
+
+<section>
+  <h2>🧭 模式切換</h2>
+  <div class="grid" id="modeGrid"></div>
+</section>
+
+<section>
+  <h2>🖥️ GPU 注意力槽（ollama 原始查詢，非摘要）<button class="secondary" style="margin-left:auto" onclick="loadGpu()">🔄 重新查詢</button></h2>
+  <pre id="gpuRaw">尚未查詢</pre>
+</section>
+
+<section>
+  <h2>⚙️ 各模式大模型設定</h2>
+  <div class="stack">
+    <div class="flex2">
+      <div>
+        <span class="field-label">對話模式（chat）用的模型</span>
+        <div class="row">
+          <input type="text" id="chatModelInput" list="modelList" placeholder="例如 qwen2.5:3b">
+        </div>
+      </div>
+      <div>
+        <span class="field-label">觀察模式（observe / VLM）用的模型</span>
+        <div class="row">
+          <input type="text" id="vlmModelInput" list="modelList" placeholder="例如 llava 或 moondream">
+        </div>
+      </div>
+    </div>
+    <datalist id="modelList"></datalist>
+    <div class="row">
+      <button onclick="saveModelConfig()">💾 儲存設定</button>
+      <button class="secondary" onclick="loadModelConfig()">↺ 重新讀取</button>
+      <span id="modelConfigMsg" class="sub"></span>
+    </div>
+    <div class="sub">已安裝模型（原始查詢 ollama /api/tags）：<span id="installedModels">讀取中…</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>📡 服務即時狀態</h2>
+  <div class="cards" id="healthCards"></div>
+  <div class="sub" style="margin-top:8px">連接埠設定為目前已知配置，若顯示異常請請終端機核對 docker-compose.yml 實際對外埠。</div>
+</section>
+
+<section>
+  <h2>🔗 四頁快速入口</h2>
+  <div class="cards">
+    <div class="card"><a href="/dashboard">📊 系統儀表板</a></div>
+    <div class="card"><a href="/acoustic">🎧 聲學即時</a></div>
+    <div class="card"><a href="/vision">👁️ 視覺即時</a></div>
+    <div class="card"><a href="/assistant">💬 助手即時</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>🔊 語音測試（雙輸出：J4012 耳機＋此網頁）</h2>
+  <div class="row">
+    <input type="text" id="ttsText" placeholder="輸入要念的文字…" value="管理駕駛艙語音測試">
+    <button onclick="testSpeak()">🔊 念一句</button>
+  </div>
+  <div class="sub" id="ttsMsg"></div>
+</section>
+
+<section>
+  <h2>🌐 對外公開網址（Cloudflare Tunnel）</h2>
+  <div class="row">
+    <input type="url" id="tunnelUrl" placeholder="https://xxxx.trycloudflare.com">
+    <button class="secondary" onclick="saveTunnel()">💾 記住</button>
+  </div>
+  <div class="sub">此網址會變動（重開機後可能不同），請終端機回報目前網址後貼在這裡，方便手機直接開。</div>
+</section>
+
+<div class="footer-note">JN1 Robotcar・管理（開發）駕駛艙・開機預設頁面</div>
+
+<script>
+const MODE_ICON = {manage:"🎛️", chat:"🗣️", observe:"👁️", patrol:"🏃", standby:"😴"};
+let ALL_MODES = {};
+let CURRENT_MODE = null;
+
+async function jget(url){
+  try{ const r = await fetch(url); return await r.json(); }
+  catch(e){ return {error: String(e)}; }
+}
+async function jpost(url, body){
+  try{
+    const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body||{})});
+    return await r.json();
+  }catch(e){ return {error: String(e)}; }
+}
+
+function fmtTime(){ return new Date().toLocaleTimeString('zh-TW',{hour12:false}); }
+
+async function loadMode(){
+  const st = await jget('/api/mode');
+  if(st && st.all){ ALL_MODES = st.all; }
+  CURRENT_MODE = st.mode || null;
+  const badge = document.getElementById('modeBadge');
+  if(CURRENT_MODE && ALL_MODES[CURRENT_MODE]){
+    badge.textContent = MODE_ICON[CURRENT_MODE]+' '+ALL_MODES[CURRENT_MODE].label+' 模式';
+    badge.className = 'badge mode-'+CURRENT_MODE;
+  }else{
+    badge.textContent = '⚠️ 無法讀取模式（/api/mode 無回應或格式異常）';
+    badge.className = 'badge';
+  }
+  document.getElementById('lastUpdated').textContent = '更新於 '+fmtTime();
+  renderModeGrid();
+}
+
+function renderModeGrid(){
+  const grid = document.getElementById('modeGrid');
+  grid.innerHTML = '';
+  const order = ['manage','chat','observe','patrol','standby'];
+  order.forEach(key=>{
+    const m = ALL_MODES[key];
+    if(!m) return;
+    const btn = document.createElement('button');
+    btn.className = 'modebtn'+(key===CURRENT_MODE?' active':'');
+    btn.innerHTML = '<span class="ic">'+(MODE_ICON[key]||'●')+'</span>'+m.label+'<span class="desc">'+m.desc+'</span>';
+    btn.onclick = ()=>switchMode(key);
+    grid.appendChild(btn);
+  });
+}
+
+async function switchMode(key){
+  document.getElementById('modeBadge').textContent = '切換中…';
+  const res = await jpost('/api/mode', {mode:key});
+  if(!res || res.ok===false){
+    alert('切換失敗：'+(res && res.error ? res.error : '未知錯誤（請看瀏覽器主控台/Network）'));
+  }
+  await loadMode();
+  setTimeout(loadGpu, 2500);
+}
+
+async function loadGpu(){
+  const pre = document.getElementById('gpuRaw');
+  pre.textContent = '查詢中…';
+  const res = await jget('/api/mode/gpu');
+  pre.textContent = JSON.stringify(res, null, 2);
+}
+
+async function loadModelConfig(){
+  const cfg = await jget('/api/mode/config');
+  if(cfg && !cfg.error){
+    document.getElementById('chatModelInput').value = cfg.chat_model || '';
+    document.getElementById('vlmModelInput').value = cfg.vlm_model || '';
+    document.getElementById('modelConfigMsg').textContent =
+      (cfg.chat_model_is_override? '對話=自訂 ':'對話=環境變數預設 ') +
+      (cfg.vlm_model_is_override? '／觀察=自訂':'／觀察=環境變數預設');
+  }else{
+    document.getElementById('modelConfigMsg').textContent = '讀取失敗：'+(cfg&&cfg.error||'');
+  }
+}
+
+async function saveModelConfig(){
+  const chat_model = document.getElementById('chatModelInput').value.trim();
+  const vlm_model = document.getElementById('vlmModelInput').value.trim();
+  const res = await jpost('/api/mode/config', {chat_model, vlm_model});
+  document.getElementById('modelConfigMsg').textContent = res && !res.error ? '已儲存 ✓（下次切到該模式生效）' : '儲存失敗：'+(res&&res.error||'');
+}
+
+async function loadInstalledModels(){
+  const res = await jget('/api/mode/models');
+  const el = document.getElementById('installedModels');
+  const list = document.getElementById('modelList');
+  if(res && Array.isArray(res.installed)){
+    el.textContent = res.installed.length? res.installed.join('、') : '（空清單）';
+    list.innerHTML = res.installed.map(n=>'<option value="'+n+'">').join('');
+  }else{
+    el.textContent = '查不到（'+(res&&(res.installed&&res.installed.error||res.error)||'未知錯誤')+'）';
+  }
+}
+
+const HEALTH_TARGETS = [
+  {key:'asr', name:'ASR 語音辨識', hint:':8003'},
+  {key:'tts', name:'TTS 語音合成', hint:':8004'},
+  {key:'perception', name:'Perception 偵測', hint:':8001'},
+  {key:'ocr', name:'OCR 讀字', hint:':8002'},
+  {key:'brain', name:'Brain 大腦', hint:':21500'},
+  {key:'ollama', name:'Ollama', hint:':11434'},
+];
+
+async function loadHealth(){
+  const res = await jget('/api/health');
+  const wrap = document.getElementById('healthCards');
+  wrap.innerHTML = '';
+  HEALTH_TARGETS.forEach(t=>{
+    const info = (res && res[t.key]) || {ok:null};
+    const dotClass = info.ok===true ? 'ok' : info.ok===false ? 'bad' : 'pending';
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = '<div class="name"><span class="dot '+dotClass+'"></span>'+t.name+'</div>'+
+      '<div class="meta">'+t.hint+(info.latency_ms!=null?(' ・ '+info.latency_ms+'ms'):'')+'</div>'+
+      '<div class="meta">'+(info.detail? String(info.detail).slice(0,60) : (info.ok===null?'尚未回應':''))+'</div>';
+    wrap.appendChild(div);
+  });
+  if(!res || res.error){
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = '<div class="bad-text">/api/health 尚未部署或無回應</div>';
+    wrap.appendChild(div);
+  }
+}
+
+async function testSpeak(){
+  const text = document.getElementById('ttsText').value.trim();
+  if(!text) return;
+  document.getElementById('ttsMsg').textContent = '送出中…';
+  const res = await jpost('/api/tts/say', {text});
+  document.getElementById('ttsMsg').textContent = res && res.ok!==false ? '已送出（J4012 耳機播放）✓' : ('失敗：'+(res&&res.error||JSON.stringify(res)));
+}
+
+function saveTunnel(){
+  const v = document.getElementById('tunnelUrl').value.trim();
+  try{ localStorage.setItem('jn1_tunnel_url', v); }catch(e){}
+}
+function loadTunnelSaved(){
+  try{
+    const v = localStorage.getItem('jn1_tunnel_url');
+    if(v) document.getElementById('tunnelUrl').value = v;
+  }catch(e){}
+}
+
+async function refreshAll(){
+  await loadMode();
+  await loadGpu();
+  await loadHealth();
+}
+
+loadTunnelSaved();
+loadModelConfig();
+loadInstalledModels();
+refreshAll();
+setInterval(loadHealth, 8000);
+setInterval(loadMode, 15000);
+</script>
+</body>
+</html>

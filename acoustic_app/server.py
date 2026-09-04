@@ -363,6 +363,12 @@ async def assistant_page():
     return FileResponse(str(f)) if f.exists() else Response(status_code=404, content="assistant.html not found")
 
 
+@app.get("/manage")
+async def manage_page():
+    f = Path(__file__).parent / "static" / "manage.html"
+    return FileResponse(str(f)) if f.exists() else Response(status_code=404, content="manage.html not found")
+
+
 @app.post("/api/vision/detect")
 async def vision_detect():
     """代理 perception /state（YOLO 偵測）"""
@@ -410,6 +416,59 @@ async def api_get_mode():
 @app.post("/api/mode")
 async def api_set_mode(payload: dict):
     return _jn1_modes.set_mode((payload or {}).get("mode", ""))
+
+
+import os as _jn1_os
+import time as _jn1_time
+
+
+@app.get("/api/mode/models")
+async def api_mode_models():
+    return {"installed": _jn1_modes.list_installed_models()}
+
+
+@app.get("/api/mode/config")
+async def api_mode_config():
+    return _jn1_modes.get_model_config()
+
+
+@app.post("/api/mode/config")
+async def api_mode_config_set(payload: dict):
+    p = payload or {}
+    return _jn1_modes.set_model_config(
+        chat_model=p.get("chat_model"),
+        vlm_model=p.get("vlm_model"),
+    )
+
+
+@app.get("/api/mode/gpu")
+async def api_mode_gpu():
+    return _jn1_modes.get_gpu_status()
+
+
+_JN1_HEALTH_TARGETS = {
+    "asr": _jn1_os.environ.get("ASR_HEALTH_URL", "http://127.0.0.1:8003/health"),
+    "tts": _jn1_os.environ.get("TTS_HEALTH_URL", "http://127.0.0.1:8004/health"),
+    "perception": _jn1_os.environ.get("PERCEPTION_HEALTH_URL", "http://127.0.0.1:8001/health"),
+    "ocr": _jn1_os.environ.get("OCR_HEALTH_URL", "http://127.0.0.1:8002/health"),
+    "brain": _jn1_os.environ.get("BRAIN_HEALTH_URL", "http://127.0.0.1:21500/health"),
+    "ollama": _jn1_os.environ.get("OLLAMA_HEALTH_URL", "http://127.0.0.1:11434/api/tags"),
+}
+
+
+@app.get("/api/health")
+async def api_health():
+    out = {}
+    async with httpx.AsyncClient(timeout=3.0) as c:
+        for name, url in _JN1_HEALTH_TARGETS.items():
+            t0 = _jn1_time.time()
+            try:
+                r = await c.get(url)
+                out[name] = {"ok": r.status_code < 400, "latency_ms": int((_jn1_time.time()-t0)*1000), "detail": "HTTP "+str(r.status_code)}
+            except Exception as e:
+                out[name] = {"ok": False, "latency_ms": int((_jn1_time.time()-t0)*1000), "detail": type(e).__name__}
+    return out
+
 
 
 @app.post("/api/assistant/ask")
