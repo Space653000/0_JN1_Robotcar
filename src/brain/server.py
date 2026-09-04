@@ -310,18 +310,36 @@ def _vlm_capture(prompt=None, manage_gpu=True):
 def _translate_vlm_to_zh(english_desc: str) -> str:
     """Translate English VLM description to Traditional Chinese via qwen2.5:3b.
     Uses explicit prompt to ensure Taiwan Traditional Chinese output.
-    M3-5b：使用 lock 序列化。"""
+    M3-5b：使用 lock 序列化。
+    M54：提示詞明講複合詞/專有名詞也要翻＋temperature降低＋翻完偵測殘留
+         英文字母，若有就用更嚴格提示詞重翻一次。修「air ducts」偶爾漏翻
+         成「氣 ducts」這種同碼不同結果的問題。"""
+    def _call_llm(prompt_text: str) -> str:
+        r = requests.post(f"{OLLAMA}/api/chat",
+                          json={"model": LLM, "stream": False,
+                                "options": {"temperature": 0.2},
+                                "messages": [{"role": "user", "content": prompt_text}]},
+                          timeout=30)
+        r.raise_for_status()
+        return r.json()["message"]["content"].strip()
+
     try:
-        prompt = f"翻譯成繁體中文（台灣用語），一句自然的話，不要清單。英文：{english_desc}"
+        prompt = ("把下面這句英文完整翻譯成繁體中文（台灣用語），一句自然的話，"
+                  "不要清單、不要保留任何英文單字，複合詞和專有名詞也要整個翻成"
+                  "中文意思（例如 air ducts 要翻成「空調風管」，不可以寫成「氣 "
+                  f"ducts」）。英文：{english_desc}")
         with _llm_lock:
             for attempt in range(2):
                 try:
-                    r = requests.post(f"{OLLAMA}/api/chat",
-                                      json={"model": LLM, "stream": False,
-                                            "messages": [{"role": "user", "content": prompt}]},
-                                      timeout=30)
-                    r.raise_for_status()
-                    zh_desc = r.json()["message"]["content"].strip()
+                    zh_desc = _call_llm(prompt)
+                    if attempt == 0 and re.search(r"[A-Za-z]{2,}", zh_desc):
+                        # M54：偵測到翻譯結果還留有英文字，重翻一次
+                        zh_desc = _call_llm(
+                            f"你剛剛的翻譯還留有英文字沒翻：「{zh_desc}」，這是不允許"
+                            f"的。請重新給我一句完整的繁體中文翻譯，把裡面每一個英文"
+                            f"單字都換成對應的中文意思，整句不能出現任何英文字母。"
+                            f"原文：{english_desc}"
+                        )
                     return to_traditional(zh_desc)
                 except requests.Timeout:
                     if attempt == 0:
