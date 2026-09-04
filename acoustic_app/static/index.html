@@ -476,15 +476,23 @@ const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"�
    所以 /api/mode 掛掉、或這段還沒載入時，每一頁都完全維持原本的頻率，
    不會因為模式功能出問題就整個變慢或變快（fail-safe）。 */
 window.JN1_MODE='';
+/* M56：頻率表改用 modes.py 宣告的 vision 旗標當 key（normal/low/high/off），
+   不再自己維護一份「模式名稱→頻率」的對照表。
+   modes.py 是唯一的事實來源，那邊改了這裡自動跟著改。
+   （M55 我寫成用模式名稱當 key，等於又生出第二份設定，而且上線當天
+     就跟 modes.py 對不上：modes.py 說 observe 是 normal，JS 卻給它
+     400ms。跟 M51 抓到的「兩套 VLM 設定各自為政」是同一種錯，改掉。）
+   觀察模式的「看仔細」不是靠把 YOLO 拉快，而是靠 VLM 整句描述＋
+   自動唸出來（M55 已經做了），所以它回到 normal 才是對的。 */
+window.JN1_VISION='';
 window.JN1_RATE={
-  manage :{frame:90,  detect:700,  thumb:120 },
-  chat   :{frame:300, detect:1500, thumb:120 },
-  observe:{frame:90,  detect:400,  thumb:400 },
-  patrol :{frame:90,  detect:300,  thumb:600 },
-  standby:{frame:3000,detect:6000, thumb:3000}
+  normal:{frame:90,  detect:700,  thumb:120 },
+  low   :{frame:300, detect:1500, thumb:120 },
+  high  :{frame:90,  detect:300,  thumb:600 },
+  off   :{frame:3000,detect:6000, thumb:3000}
 };
 window.jn1Rate=function(key,fallback){
-  var r=window.JN1_RATE[window.JN1_MODE];
+  var r=window.JN1_RATE[window.JN1_VISION];
   return (r&&r[key]!=null)?r[key]:fallback;
 };
 async function jn1RefreshAttnMode(){
@@ -492,6 +500,7 @@ async function jn1RefreshAttnMode(){
     const r=await fetch('/api/mode');const d=await r.json();
     const el=document.getElementById('jn1AttnMode');
     if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+    if(d&&d.mode&&d.all&&d.all[d.mode]){window.JN1_VISION=d.all[d.mode].vision||'';}
     if(d&&d.mode&&d.mode!==window.JN1_MODE){
       var prev=window.JN1_MODE;window.JN1_MODE=d.mode;
       if(typeof window.jn1OnModeChange==='function'){try{window.jn1OnModeChange(d.mode,prev);}catch(e){}}
