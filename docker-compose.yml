@@ -100,7 +100,7 @@ services:
     image: robotcar-vision:latest
     environment:
       - OLLAMA_URL=http://ollama-new:11434
-      - VLM_MODEL=${VLM_MODEL:-llava}
+      - VLM_MODEL=${VLM_MODEL:-moondream}
       - PERCEPTION_URL=${PERCEPTION_URL:-http://perception:8000}
       - VIDEO_DEV=${VIDEO_DEV:-/dev/video0}
     devices:
