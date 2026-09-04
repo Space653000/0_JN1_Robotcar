@@ -295,11 +295,31 @@ async function jn1SpeakStatus(){try{
 
 <script>
 const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+/* M55：模式驅動的行為調整。
+   重點：所有呼叫點都寫成 window.jn1Rate ? ... : 原本的值，
+   所以 /api/mode 掛掉、或這段還沒載入時，每一頁都完全維持原本的頻率，
+   不會因為模式功能出問題就整個變慢或變快（fail-safe）。 */
+window.JN1_MODE='';
+window.JN1_RATE={
+  manage :{frame:90,  detect:700,  thumb:120 },
+  chat   :{frame:300, detect:1500, thumb:120 },
+  observe:{frame:90,  detect:400,  thumb:400 },
+  patrol :{frame:90,  detect:300,  thumb:600 },
+  standby:{frame:3000,detect:6000, thumb:3000}
+};
+window.jn1Rate=function(key,fallback){
+  var r=window.JN1_RATE[window.JN1_MODE];
+  return (r&&r[key]!=null)?r[key]:fallback;
+};
 async function jn1RefreshAttnMode(){
   try{
     const r=await fetch('/api/mode');const d=await r.json();
     const el=document.getElementById('jn1AttnMode');
     if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+    if(d&&d.mode&&d.mode!==window.JN1_MODE){
+      var prev=window.JN1_MODE;window.JN1_MODE=d.mode;
+      if(typeof window.jn1OnModeChange==='function'){try{window.jn1OnModeChange(d.mode,prev);}catch(e){}}
+    }
   }catch(e){}
 }
 jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);

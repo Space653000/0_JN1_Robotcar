@@ -74,7 +74,7 @@ let online=false,fcount=0,ft=Date.now();
 function pollFrame(){
   const u='/frame.jpg?t='+Date.now();
   const im=new Image();
-  im.onload=()=>{cam.src=im.src;online=true;setBadge();setTimeout(pollFrame,90);};
+  im.onload=()=>{cam.src=im.src;online=true;setBadge();setTimeout(pollFrame,(window.jn1Rate?window.jn1Rate('frame',90):90));};
   im.onerror=()=>{online=false;setBadge();setTimeout(pollFrame,1200);};
   im.src=u;
 }
@@ -88,7 +88,7 @@ async function detect(){
       if(d.ok){render(d);fcount++;const now=Date.now();if(now-ft>=1000){$('#fps').textContent=fcount;fcount=0;ft=now;}}
     }
   }catch(e){}
-  setTimeout(detect,700);
+  setTimeout(detect,(window.jn1Rate?window.jn1Rate('detect',700):700));
 }
 function render(d){
   const dets=d.detections||[];
@@ -137,7 +137,7 @@ async function describe(){
   try{
     const r=await fetch('/api/vision/describe',{method:'POST'});
     const d=await r.json();
-    if(d.ok&&d.reply){lastDesc=d.reply;$('#desc').innerHTML=esc(d.reply)+'<div class="meta">來源：'+esc(d.source||'vision')+(d.vlm_en?'　·　'+esc(d.vlm_en):'')+'</div>';}
+    if(d.ok&&d.reply){lastDesc=d.reply;if(window.JN1_MODE==='observe'){try{speakDesc();}catch(e){}}$('#desc').innerHTML=esc(d.reply)+'<div class="meta">來源：'+esc(d.source||'vision')+(d.vlm_en?'　·　'+esc(d.vlm_en):'')+'</div>';}
     else{$('#desc').textContent=(d.reply||'視覺服務暫時不可用。');}
   }catch(e){$('#desc').textContent='連線失敗：'+e.message;}
   seeing=false;$('#btnSee').disabled=false;
@@ -154,11 +154,31 @@ pollFrame();detect();
 
 <script>
 const JN1_ATTN_ICON={manage:"🎛️",chat:"🗣️",observe:"👁️",patrol:"🏃",standby:"😴"};
+/* M55：模式驅動的行為調整。
+   重點：所有呼叫點都寫成 window.jn1Rate ? ... : 原本的值，
+   所以 /api/mode 掛掉、或這段還沒載入時，每一頁都完全維持原本的頻率，
+   不會因為模式功能出問題就整個變慢或變快（fail-safe）。 */
+window.JN1_MODE='';
+window.JN1_RATE={
+  manage :{frame:90,  detect:700,  thumb:120 },
+  chat   :{frame:300, detect:1500, thumb:120 },
+  observe:{frame:90,  detect:400,  thumb:400 },
+  patrol :{frame:90,  detect:300,  thumb:600 },
+  standby:{frame:3000,detect:6000, thumb:3000}
+};
+window.jn1Rate=function(key,fallback){
+  var r=window.JN1_RATE[window.JN1_MODE];
+  return (r&&r[key]!=null)?r[key]:fallback;
+};
 async function jn1RefreshAttnMode(){
   try{
     const r=await fetch('/api/mode');const d=await r.json();
     const el=document.getElementById('jn1AttnMode');
     if(el&&d&&d.all&&d.mode&&d.all[d.mode]){el.textContent=(JN1_ATTN_ICON[d.mode]||'\u25CF')+' '+d.all[d.mode].label;}
+    if(d&&d.mode&&d.mode!==window.JN1_MODE){
+      var prev=window.JN1_MODE;window.JN1_MODE=d.mode;
+      if(typeof window.jn1OnModeChange==='function'){try{window.jn1OnModeChange(d.mode,prev);}catch(e){}}
+    }
   }catch(e){}
 }
 jn1RefreshAttnMode();setInterval(jn1RefreshAttnMode,15000);
