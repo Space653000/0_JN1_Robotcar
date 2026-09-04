@@ -6,17 +6,16 @@
 # 大模型槽 big：None=不載大模型 / "chat"=qwen / "vlm"=llava
 # 由 server.py 匯入：import modes；提供 get_mode() / set_mode() / MODES
 #
-# v4（M48）新增：
-#   - 「世代編號」防跨呼叫競速：每次 set_mode() 世代 +1，背景執行緒
-#     每完成一步就檢查自己是否還是最新一代，不是就立刻放棄、不碰 GPU。
-#     修的問題：連續快速切模式時，舊的背景任務可能在新任務做完之後
-#     才姍姍來遲地把新載入的模型卸掉，造成 GPU 狀態震盪。
-# v3（M47）：
-#   - 卸載後改「輪詢 /api/ps 等舊模型真的消失」才載新的，避免競速 OOM。
-#   - _ollama_warm_safe()：載入失敗自動重試一次。
-# v2：
-#   - chat_model / vlm_model 可在管理頁即時覆寫（data/mode_config.json）。
-#   - list_installed_models() / get_gpu_status()：直接轉手 ollama 原始查詢。
+# v5（M49）改動：
+#   - 不再逐段檢查世代（M48 的做法有縫隙）。改成把整個「卸載+等待+
+#     載入」包進 _apply_lock，同一時間只有一個世代能真正動 GPU；
+#     拿到鎖時再確認一次自己是不是最新世代，不是就直接放棄。
+#     這樣不會有任何跟別的世代交錯執行的可能。
+#   - 新增 data/mode_trace.log：每一步都記時間戳＋世代編號＋動作，
+#     方便直接看機器實際做了什麼，不必靠外部輪詢反推。
+# v4（M48）：世代編號防跨呼叫競速（逐段檢查版，已被 v5 取代其機制）。
+# v3（M47）：卸載後輪詢等舊模型真的消失才載新的，避免單次切換內 OOM。
+# v2：chat_model/vlm_model 可在管理頁即時覆寫；原始查詢 ollama 狀態。
 
 import os
 import json
@@ -36,6 +35,7 @@ _ENV_VLM_MODEL = os.environ.get("JN1_VLM_MODEL", "llava")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(_HERE, "..", "data", "mode.json")
 CONFIG_FILE = os.path.join(_HERE, "..", "data", "mode_config.json")
+TRACE_FILE = os.path.join(_HERE, "..", "data", "mode_trace.log")
 
 MODES = {
     "manage":  {"label": "管理（開發）", "big": None,   "vlm": False, "cloud": True,
@@ -54,9 +54,9 @@ MODES = {
 DEFAULT_MODE = "manage"
 _config_lock = threading.Lock()
 
-# ---------- 世代鎖（防跨呼叫競速） ----------
 _gen_lock = threading.Lock()
 _generation = 0
+_apply_lock = threading.Lock()  # 同一時間只有一個世代能真正動 GPU
 
 
 def _bump_generation():
@@ -69,6 +69,15 @@ def _bump_generation():
 def _is_current(gen):
     with _gen_lock:
         return gen == _generation
+
+
+def _trace(gen, msg):
+    try:
+        os.makedirs(os.path.dirname(TRACE_FILE), exist_ok=True)
+        with open(TRACE_FILE, "a") as f:
+            f.write("%.3f gen=%s %s\n" % (time.time(), gen, msg))
+    except Exception:
+        pass
 
 
 def _post(url, body, timeout):
@@ -124,13 +133,11 @@ def _resident_names():
     return []
 
 
-def _wait_gone(model, timeout=10, interval=0.5, gen=None):
-    """等到指定模型真的從 GPU 上消失。若帶了 gen，一旦發現自己已經
-    不是最新世代，立刻停止等待（沒有意義再等下去）。"""
+def _wait_gone(model, timeout=10, interval=0.5):
+    """等到指定模型真的從 GPU 上消失。在 _apply_lock 裡面呼叫，
+    不會有別的世代插隊，所以不需要再夾世代檢查。"""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if gen is not None and not _is_current(gen):
-            return False
         if model not in _resident_names():
             return True
         time.sleep(interval)
@@ -223,34 +230,38 @@ def get_mode():
 
 
 def _apply_async(big, gen):
-    """gen＝這次切換的世代編號。每一步之前都先確認自己還是不是最新的，
-    不是的話立刻退出，讓真正最新的那次切換說了算。"""
-    if not _is_current(gen):
-        return
+    _trace(gen, "queued (等鎖) big=%s" % big)
+    with _apply_lock:
+        if not _is_current(gen):
+            _trace(gen, "拿到鎖時已經過時，放棄，不碰 GPU")
+            return
+        _trace(gen, "拿到鎖，開始執行")
 
-    chat_model = get_chat_model()
-    vlm_model = get_vlm_model()
+        chat_model = get_chat_model()
+        vlm_model = get_vlm_model()
 
-    if big != "chat":
-        _ollama_unload(chat_model)
-        if not _wait_gone(chat_model, timeout=10, gen=gen):
-            if not _is_current(gen):
-                return
-    if not _is_current(gen):
-        return
+        if big != "chat":
+            _trace(gen, "卸載 chat_model=%s" % chat_model)
+            _ollama_unload(chat_model)
+            ok = _wait_gone(chat_model, timeout=10)
+            _trace(gen, "chat 卸載等待結果=%s" % ok)
 
-    if big != "vlm":
-        _ollama_unload(vlm_model)
-        if not _wait_gone(vlm_model, timeout=10, gen=gen):
-            if not _is_current(gen):
-                return
-    if not _is_current(gen):
-        return
+        if big != "vlm":
+            _trace(gen, "卸載 vlm_model=%s" % vlm_model)
+            _ollama_unload(vlm_model)
+            ok = _wait_gone(vlm_model, timeout=10)
+            _trace(gen, "vlm 卸載等待結果=%s" % ok)
 
-    if big == "chat":
-        _ollama_warm_safe(chat_model)
-    elif big == "vlm":
-        _ollama_warm_safe(vlm_model)
+        if big == "chat":
+            _trace(gen, "載入 chat_model=%s" % chat_model)
+            r = _ollama_warm_safe(chat_model)
+            _trace(gen, "chat 載入結果=%s" % (str(r)[:150] if r else r))
+        elif big == "vlm":
+            _trace(gen, "載入 vlm_model=%s" % vlm_model)
+            r = _ollama_warm_safe(vlm_model)
+            _trace(gen, "vlm 載入結果=%s" % (str(r)[:150] if r else r))
+
+        _trace(gen, "完成")
 
 
 def set_mode(mode):
@@ -265,5 +276,6 @@ def set_mode(mode):
     except Exception as e:
         return {"ok": False, "error": "write state failed: " + type(e).__name__}
     gen = _bump_generation()
+    _trace(gen, "set_mode 呼叫，mode=%s" % mode)
     threading.Thread(target=_apply_async, args=(m["big"], gen), daemon=True).start()
     return {"ok": True, "mode": mode, "config": m, "switching": bool(m["big"]), "gen": gen}
