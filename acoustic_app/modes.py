@@ -6,11 +6,11 @@
 # 大模型槽 big：None=不載大模型 / "chat"=qwen / "vlm"=llava
 # 由 server.py 匯入：import modes；提供 get_mode() / set_mode() / MODES
 #
-# v2（管理頁用）新增：
-#   - chat_model / vlm_model 可在管理頁「即時覆寫」（存 data/mode_config.json），
-#     不覆寫則沿用環境變數預設。
-#   - list_installed_models()：直接問 ollama /api/tags，原始查詢、不用猜的。
-#   - get_gpu_status()：直接轉手 ollama /api/ps 原始回應，給網頁「不信摘要、只信原始輸出」用。
+# v3（M47）新增：
+#   - 卸載後改「輪詢 /api/ps 等舊模型真的消失」才載新的，避免競速 OOM。
+#   - _ollama_warm_safe()：載入失敗（例如暫時性 OOM）自動重試一次。
+#   - chat_model / vlm_model 可在管理頁即時覆寫（data/mode_config.json）。
+#   - list_installed_models() / get_gpu_status()：直接轉手 ollama 原始查詢。
 
 import os
 import json
@@ -19,7 +19,7 @@ import threading
 
 try:
     import httpx
-except Exception:  # 萬一沒有 httpx，退用標準庫
+except Exception:
     httpx = None
     import urllib.request
 
@@ -80,8 +80,39 @@ def _ollama_unload(model):
 
 
 def _ollama_warm(model):
-    _post(OLLAMA + "/api/generate",
+    return _post(OLLAMA + "/api/generate",
           {"model": model, "keep_alive": -1, "prompt": "hi", "stream": False}, timeout=180)
+
+
+def _ollama_warm_safe(model, retries=1, retry_wait=2):
+    """載入並常駐；第一次若失敗（例如卸載競速造成的暫時性 OOM），
+    等一下再試一次。回傳最後一次的原始回應文字。"""
+    result = None
+    for attempt in range(retries + 1):
+        result = _ollama_warm(model)
+        if result is not None and '"error"' not in result:
+            return result
+        if attempt < retries:
+            time.sleep(retry_wait)
+    return result
+
+
+def _resident_names():
+    st = get_gpu_status()
+    if isinstance(st, dict) and isinstance(st.get("models"), list):
+        return [m.get("name") for m in st["models"]]
+    return []
+
+
+def _wait_gone(model, timeout=10, interval=0.5):
+    """等到指定模型真的從 GPU 上消失（輪詢原始 /api/ps），避免下一個模型
+    在還沒真的釋放記憶體時搶著載入、造成暫時性 OOM。逾時就放棄等待，繼續往下走。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if model not in _resident_names():
+            return True
+        time.sleep(interval)
+    return False
 
 
 def _load_config():
@@ -172,14 +203,18 @@ def get_mode():
 def _apply_async(big):
     chat_model = get_chat_model()
     vlm_model = get_vlm_model()
+
     if big != "chat":
         _ollama_unload(chat_model)
+        _wait_gone(chat_model, timeout=10)
     if big != "vlm":
         _ollama_unload(vlm_model)
+        _wait_gone(vlm_model, timeout=10)
+
     if big == "chat":
-        _ollama_warm(chat_model)
+        _ollama_warm_safe(chat_model)
     elif big == "vlm":
-        _ollama_warm(vlm_model)
+        _ollama_warm_safe(vlm_model)
 
 
 def set_mode(mode):
