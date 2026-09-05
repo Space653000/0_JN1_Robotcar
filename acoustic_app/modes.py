@@ -153,9 +153,16 @@ def _load_config():
 
 
 def _save_config(cfg):
+    # M59.6：改成原子寫入（先寫暫存檔再 rename）。vision 容器現在會跨
+    # 行程讀這個檔案（見 src/vision/server.py），沿用 M58 對 mode.json
+    # 已驗證過的做法，避免讀到寫到一半的內容。
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
-    with open(CONFIG_FILE, "w") as f:
+    _tmp = CONFIG_FILE + ".tmp"
+    with open(_tmp, "w") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(_tmp, CONFIG_FILE)
 
 
 def get_chat_model():
